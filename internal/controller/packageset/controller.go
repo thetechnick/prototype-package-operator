@@ -69,6 +69,7 @@ func (r *PackageSetReconciler) Reconcile(
 		if err := r.dw.Free(packageSet); err != nil {
 			return ctrl.Result{}, fmt.Errorf("free cache: %w", err)
 		}
+		return ctrl.Result{}, nil
 	}
 
 	if !controllerutil.ContainsFinalizer(
@@ -147,7 +148,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 		Message:            fmt.Sprintf("Phase %q failed: %s", phase.Name, strings.Join(failedProbes, ", ")),
 		ObservedGeneration: packageSet.Generation,
 	})
-	packageSet.Status.Phase = packagesv1alpha1.PackageSetPhaseUnavailable
+	packageSet.Status.Phase = packagesv1alpha1.PackageSetPhaseNotReady
 	packageSet.Status.ObservedGeneration = packageSet.Generation
 	if err := r.Status().Update(ctx, packageSet); err != nil {
 		return false, err
@@ -178,7 +179,7 @@ func (r *PackageSetReconciler) reconcileObject(
 
 	currentObj := obj.DeepCopy()
 	err := r.Get(ctx, client.ObjectKeyFromObject(obj), currentObj)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("getting: %w", err)
 	}
 	if errors.IsNotFound(err) {

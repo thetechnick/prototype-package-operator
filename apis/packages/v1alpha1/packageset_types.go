@@ -31,7 +31,7 @@ type PackageSetPhase string
 const (
 	PackageSetPhasePending     PackageSetPhase = "Pending"
 	PackageSetPhaseAvailable   PackageSetPhase = "Available"
-	PackageSetPhaseUnavailable PackageSetPhase = "Unavailable"
+	PackageSetPhaseNotReady    PackageSetPhase = "NotReady"
 	PackageSetPhaseTerminating PackageSetPhase = "Terminating"
 )
 
