@@ -2,7 +2,8 @@ SHELL=/bin/bash
 .SHELLFLAGS=-euo pipefail -c
 
 # Dependency Versions
-CONTROLLER_GEN_VERSION:=v0.5.0
+# need https://github.com/kubernetes-sigs/controller-tools/pull/557
+CONTROLLER_GEN_VERSION:=9cd8c2840e842554b3264634e3956e9f4d1c5497
 KIND_VERSION:=v0.10.0
 YQ_VERSION:=v4@v4.7.0
 GOIMPORTS_VERSION:=v0.1.0
@@ -166,7 +167,7 @@ run: generate fmt vet manifests
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: $(CONTROLLER_GEN)
 	@echo "generating kubernetes manifests..."
-	@controller-gen crd:crdVersions=v1 \
+	@controller-gen crd:crdVersions=v1,generateEmbeddedObjectMeta=true \
 		rbac:roleName=package-operator-manager \
 		paths="./..." \
 		output:crd:artifacts:config=config/deploy 2>&1 | sed 's/^/  /'

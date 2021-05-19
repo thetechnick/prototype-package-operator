@@ -57,21 +57,11 @@ func (r *PackageSetReconciler) Reconcile(
 	}
 
 	if !packageSet.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(
-			packageSet, packageSetCacheFinalizer) {
-			controllerutil.RemoveFinalizer(
-				packageSet, packageSetCacheFinalizer)
-
-			if err := r.Update(ctx, packageSet); err != nil {
-				return ctrl.Result{}, fmt.Errorf("removing finalizer: %w", err)
-			}
-		}
-		if err := r.dw.Free(packageSet); err != nil {
-			return ctrl.Result{}, fmt.Errorf("free cache: %w", err)
-		}
-		return ctrl.Result{}, nil
+		// PackgeSet was deleted.
+		return ctrl.Result{}, r.handleDeletion(ctx, packageSet)
 	}
 
+	// Add finalizers
 	if !controllerutil.ContainsFinalizer(
 		packageSet, packageSetCacheFinalizer) {
 		controllerutil.AddFinalizer(packageSet, packageSetCacheFinalizer)
@@ -82,7 +72,6 @@ func (r *PackageSetReconciler) Reconcile(
 
 	// Probes
 	probes := parseProbes(packageSet.Spec.ReadinessProbes)
-
 	for _, phase := range packageSet.Spec.Phases {
 		stop, err := r.reconcilePhase(ctx, packageSet, &phase, probes)
 		if err != nil {
@@ -93,6 +82,19 @@ func (r *PackageSetReconciler) Reconcile(
 		}
 	}
 
+	if packageSet.Spec.Paused {
+		meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
+			Type:               packagesv1alpha1.PackageSetPaused,
+			Status:             metav1.ConditionTrue,
+			Reason:             "Paused",
+			Message:            "PackageSet is paused.",
+			ObservedGeneration: packageSet.Generation,
+		})
+	} else {
+		meta.RemoveStatusCondition(
+			&packageSet.Status.Conditions, packagesv1alpha1.PackageSetPaused)
+	}
+
 	meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
 		Type:               packagesv1alpha1.PackageSetAvailable,
 		Status:             metav1.ConditionTrue,
@@ -100,6 +102,7 @@ func (r *PackageSetReconciler) Reconcile(
 		Message:            "Package is available an passes all probes.",
 		ObservedGeneration: packageSet.Generation,
 	})
+	packageSet.Status.PausedFor = packageSet.Spec.PausedFor
 	packageSet.Status.Phase = packagesv1alpha1.PackageSetAvailable
 	packageSet.Status.ObservedGeneration = packageSet.Generation
 	if err := r.Status().Update(ctx, packageSet); err != nil {
@@ -156,6 +159,27 @@ func (r *PackageSetReconciler) reconcilePhase(
 	return true, nil
 }
 
+// handle deletion of the PackageSet
+func (r *PackageSetReconciler) handleDeletion(
+	ctx context.Context,
+	packageSet *packagesv1alpha1.PackageSet,
+) error {
+	if controllerutil.ContainsFinalizer(
+		packageSet, packageSetCacheFinalizer) {
+		controllerutil.RemoveFinalizer(
+			packageSet, packageSetCacheFinalizer)
+
+		if err := r.Update(ctx, packageSet); err != nil {
+			return fmt.Errorf("removing finalizer: %w", err)
+		}
+	}
+
+	if err := r.dw.Free(packageSet); err != nil {
+		return fmt.Errorf("free cache: %w", err)
+	}
+	return nil
+}
+
 func (r *PackageSetReconciler) reconcileObject(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.PackageSet,
@@ -177,32 +201,69 @@ func (r *PackageSetReconciler) reconcileObject(
 		return err
 	}
 
+	// Ensure to watchlist
+	if err := r.dw.Watch(packageSet, obj); err != nil {
+		return fmt.Errorf("watching new resource: %w", err)
+	}
+
 	currentObj := obj.DeepCopy()
 	err := r.Get(ctx, client.ObjectKeyFromObject(obj), currentObj)
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("getting: %w", err)
 	}
+
+	if packageSet.Spec.Paused {
+		// Paused, don't reconcile.
+		// Just report the latest object state.
+		*obj = *currentObj
+		return nil
+	}
+
+	for _, pausedObject := range packageSet.Spec.PausedFor {
+		if pausedObject.Matches(obj) {
+			// Paused, don't reconcile.
+			// Just report the latest object state.
+			*obj = *currentObj
+			return nil
+		}
+	}
+
 	if errors.IsNotFound(err) {
 		err := r.Create(ctx, obj)
 		if err != nil {
 			return fmt.Errorf("creating: %w", err)
 		}
 	}
-	if err == nil {
-		// Update
-		if !equality.Semantic.DeepDerivative(obj.Object, currentObj.Object) {
-			err := r.Update(ctx, obj)
-			if err != nil {
-				return fmt.Errorf("updating: %w", err)
-			}
-		} else {
-			*obj = *currentObj
+
+	// Adoption/Handover process
+	var isOwner bool
+	for _, ownerRef := range currentObj.GetOwnerReferences() {
+		isOwner = ownerRef.UID == packageSet.UID
+		if isOwner {
+			break
 		}
 	}
 
-	// Ensure to watchlist
-	if err := r.dw.Watch(packageSet, obj); err != nil {
-		return fmt.Errorf("watching new resource: %w", err)
+	// Let's take over ownership from the other PackageSet.
+	var newOwnerRefs []metav1.OwnerReference
+	for _, ownerRef := range currentObj.GetOwnerReferences() {
+		ownerRef.Controller = nil
+		newOwnerRefs = append(newOwnerRefs, ownerRef)
+	}
+	obj.SetOwnerReferences(newOwnerRefs)
+
+	if err := controllerutil.SetControllerReference(packageSet, obj, r.Scheme); err != nil {
+		return err
+	}
+
+	// Update
+	if !equality.Semantic.DeepDerivative(obj.Object, currentObj.Object) {
+		err := r.Update(ctx, obj)
+		if err != nil {
+			return fmt.Errorf("updating: %w", err)
+		}
+	} else {
+		*obj = *currentObj
 	}
 
 	return nil

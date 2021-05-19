@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	packageapis "github.com/thetechnick/package-operator/apis"
+	packagedeploymentcontroller "github.com/thetechnick/package-operator/internal/controller/packagedeployment"
 	packagesetcontroller "github.com/thetechnick/package-operator/internal/controller/packageset"
 )
 
@@ -107,6 +108,15 @@ func main() {
 		Scheme:        mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PackageSet")
+		os.Exit(1)
+	}
+
+	if err = (&packagedeploymentcontroller.PackageDeploymentReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("PackageDeployment"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "PackageDeployment")
 		os.Exit(1)
 	}
 

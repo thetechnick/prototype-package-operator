@@ -2,12 +2,39 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // PackageSetSpec defines the desired state of a PackageSet.
 type PackageSetSpec struct {
+	// Paused disables reconcilation of the PackageSet,
+	// only Status updates will be propagated.
+	Paused bool `json:"paused,omitempty"`
+
+	PausedFor []PackagePausedObject `json:"pausedFor,omitempty"`
+
+	// Immutable fields below
+
 	Phases          []PackagePhase `json:"phases"`
 	ReadinessProbes []PackageProbe `json:"readinessProbes"`
+}
+
+type PackagePausedObject struct {
+	Kind      string `json:"kind"`
+	Group     string `json:"group"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+func (ppo *PackagePausedObject) Matches(obj client.Object) bool {
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	if gvk.Group == ppo.Group &&
+		gvk.Kind == ppo.Kind &&
+		obj.GetName() == ppo.Name &&
+		obj.GetNamespace() == ppo.Namespace {
+		return true
+	}
+	return false
 }
 
 // PackageSetStatus defines the observed state of a PackageSet
@@ -19,10 +46,14 @@ type PackageSetStatus struct {
 	// DEPRECATED: This field is not part of any API contract
 	// it will go away as soon as kubectl can print conditions!
 	// Human readable status - please use .Conditions from code
-	Phase PackageSetPhase `json:"phase,omitempty"`
+	Phase     PackageSetPhase       `json:"phase,omitempty"`
+	PausedFor []PackagePausedObject `json:"pausedFor,omitempty"`
 }
 
-const PackageSetAvailable = "Available"
+const (
+	PackageSetAvailable = "Available"
+	PackageSetPaused    = "Paused"
+)
 
 type PackageSetPhase string
 
