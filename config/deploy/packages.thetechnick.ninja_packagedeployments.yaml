@@ -167,6 +167,8 @@ spec:
                                   - type
                                   type: object
                                 fieldsEqual:
+                                  description: Compares two fields specified by JSON
+                                    Paths.
                                   properties:
                                     fieldA:
                                       type: string
