@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -126,25 +127,32 @@ func (r *PackageDeploymentReconciler) Reconcile(
 
 		err := r.Create(ctx, desiredPackageSet)
 		if errors.IsAlreadyExists(err) {
-			// TODO: hash collision detection
+
 			return ctrl.Result{}, nil
 		}
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("creating new PackageSet: %w", err)
 		}
 		return ctrl.Result{}, nil
+	} else if !equality.Semantic.DeepDerivative(desiredPackageSet.Spec.Phases, currentPackageSet.Spec.Phases) ||
+		!equality.Semantic.DeepDerivative(desiredPackageSet.Spec.ReadinessProbes, currentPackageSet.Spec.ReadinessProbes) {
+		if packageDeployment.Status.CollisionCount == nil {
+			packageDeployment.Status.CollisionCount = pointer.Int32Ptr(0)
+		}
+		*packageDeployment.Status.CollisionCount++
+		return ctrl.Result{Requeue: true}, r.Status().Update(ctx, packageDeployment)
 	}
 
 	if meta.IsStatusConditionTrue(
-		currentPackageSet.Status.Conditions,
-		packagesv1alpha1.PackageSetAvailable,
-	) {
-		// for _, oldPackageSet := range oldPackageSets {
-		// 	if err := r.Delete(ctx, &oldPackageSet); err != nil &&
-		// 		!errors.IsNotFound(err) {
-		// 		return ctrl.Result{}, fmt.Errorf("deleting old PackageSet: %w", err)
-		// 	}
-		// }
+		currentPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
+		currentPackageSet.Generation == currentPackageSet.Status.ObservedGeneration {
+		log.Info("New PackageSet Available, archiving old ones!", "PackageSet", client.ObjectKeyFromObject(currentPackageSet))
+		for _, oldPackageSet := range oldPackageSets {
+			oldPackageSet.Spec.Archived = true
+			if err := r.Update(ctx, &oldPackageSet); err != nil {
+				return ctrl.Result{}, fmt.Errorf("archiving old PackageSet: %w", err)
+			}
+		}
 	} else {
 		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
 			Type:               packagesv1alpha1.PackageSetAvailable,
@@ -183,10 +191,9 @@ func pausedObjectsFromPackageSet(packageSet *packagesv1alpha1.PackageSet) ([]pac
 				return nil, fmt.Errorf("converting RawExtension into unstructured: %w", err)
 			}
 			pausedObject = append(pausedObject, packagesv1alpha1.PackagePausedObject{
-				Group:     obj.GroupVersionKind().Group,
-				Kind:      obj.GetKind(),
-				Name:      obj.GetName(),
-				Namespace: packageSet.GetNamespace(),
+				Group: obj.GroupVersionKind().Group,
+				Kind:  obj.GetKind(),
+				Name:  obj.GetName(),
 			})
 		}
 	}

@@ -43,11 +43,16 @@ spec:
           spec:
             description: PackageSetSpec defines the desired state of a PackageSet.
             properties:
+              archived:
+                description: Archived will delete all unpaused objects and remove
+                  o
+                type: boolean
               paused:
                 description: Paused disables reconcilation of the PackageSet, only
                   Status updates will be propagated.
                 type: boolean
               pausedFor:
+                description: Pause reconcilation of specific objects.
                 items:
                   properties:
                     group:
@@ -56,13 +61,10 @@ spec:
                       type: string
                     name:
                       type: string
-                    namespace:
-                      type: string
                   required:
                   - group
                   - kind
                   - name
-                  - namespace
                   type: object
                 type: array
               phases:
@@ -95,25 +97,11 @@ spec:
                   description: Package probes define how packages are checked for
                     their status.
                   properties:
-                    kind:
-                      description: Kind specific configuration parameters. Only present
-                        if Type = Kind.
-                      properties:
-                        apiGroup:
-                          description: Object APIGroup to apply a probe to.
-                          type: string
-                        kind:
-                          description: Object Kind to apply a probe to.
-                          type: string
-                      required:
-                      - apiGroup
-                      - kind
-                      type: object
                     name:
                       description: Name of the probe.
                       type: string
                     probe:
-                      description: Probe parameters.
+                      description: Probe configuration parameters.
                       properties:
                         condition:
                           description: Condition specific configuration parameters.
@@ -130,25 +118,55 @@ spec:
                           - status
                           - type
                           type: object
+                        fieldsEqual:
+                          properties:
+                            fieldA:
+                              type: string
+                            fieldB:
+                              type: string
+                          required:
+                          - fieldA
+                          - fieldB
+                          type: object
                         type:
                           description: Type of the probe.
                           enum:
                           - Condition
+                          - FieldsEqual
                           type: string
                       required:
-                      - condition
                       - type
                       type: object
-                    type:
-                      description: Type of the package probe.
-                      enum:
-                      - Kind
-                      type: string
+                    selector:
+                      description: Selector specifies which objects this probe should
+                        target.
+                      properties:
+                        kind:
+                          description: Kind specific configuration parameters. Only
+                            present if Type = Kind.
+                          properties:
+                            group:
+                              description: Object Group to apply a probe to.
+                              type: string
+                            kind:
+                              description: Object Kind to apply a probe to.
+                              type: string
+                          required:
+                          - group
+                          - kind
+                          type: object
+                        type:
+                          description: Type of the package probe.
+                          enum:
+                          - Kind
+                          type: string
+                      required:
+                      - type
+                      type: object
                   required:
-                  - kind
                   - name
                   - probe
-                  - type
+                  - selector
                   type: object
                 type: array
             required:
@@ -244,13 +262,10 @@ spec:
                       type: string
                     name:
                       type: string
-                    namespace:
-                      type: string
                   required:
                   - group
                   - kind
                   - name
-                  - namespace
                   type: object
                 type: array
               phase:

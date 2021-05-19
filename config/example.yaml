@@ -2,9 +2,6 @@ apiVersion: packages.thetechnick.ninja/v1alpha1
 kind: PackageSet
 metadata:
   name: nginx-1
-  # labels:
-  #   packages.thetechnick.ninja/version: v1.14.2
-  #   packages.thetechnick.ninja/package: nginx
 spec:
   phases:
   - name: deploy
@@ -34,13 +31,14 @@ spec:
                 ports:
                 - containerPort: 80
   readinessProbes:
-  - type: Kind
-    name: Available
+  - name: Available
+    selector:
+      type: Kind
+      kind:
+        group: apps
+        kind: Deployment
     probe:
       type: Condition
       condition:
         type: Available
         status: "True"
-    kind:
-      apiGroup: apps
-      kind: Deployment

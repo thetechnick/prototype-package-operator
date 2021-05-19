@@ -22,25 +22,30 @@ type PackageObject struct {
 type PackageProbe struct {
 	// Name of the probe.
 	Name string `json:"name"`
-	// Type of the package probe.
-	// +kubebuilder:validation:Enum=Kind
-	Type PackageProbeType `json:"type"`
-	// Kind specific configuration parameters. Only present if Type = Kind.
-	Kind *PackageProbeKindSpec `json:"kind"`
-	// Probe parameters.
+	// Probe configuration parameters.
 	Probe Probe `json:"probe"`
+	// Selector specifies which objects this probe should target.
+	Selector ProbeSelector `json:"selector"`
 }
 
-type PackageProbeType string
+type ProbeSelectorType string
 
 const (
-	PackageProbeKind PackageProbeType = "Kind"
+	ProbeSelectorKind ProbeSelectorType = "Kind"
 )
+
+type ProbeSelector struct {
+	// Type of the package probe.
+	// +kubebuilder:validation:Enum=Kind
+	Type ProbeSelectorType `json:"type"`
+	// Kind specific configuration parameters. Only present if Type = Kind.
+	Kind *PackageProbeKindSpec `json:"kind,omitempty"`
+}
 
 // Kind package probe parameters.
 type PackageProbeKindSpec struct {
-	// Object APIGroup to apply a probe to.
-	APIGroup string `json:"apiGroup"`
+	// Object Group to apply a probe to.
+	Group string `json:"group"`
 	// Object Kind to apply a probe to.
 	Kind string `json:"kind"`
 }
@@ -48,16 +53,18 @@ type PackageProbeKindSpec struct {
 // Defines probe parameters to check parts of a package.
 type Probe struct {
 	// Type of the probe.
-	// +kubebuilder:validation:Enum=Condition
+	// +kubebuilder:validation:Enum=Condition;FieldsEqual
 	Type ProbeType `json:"type"`
 	// Condition specific configuration parameters. Only present if Type = Condition.
-	Condition *ProbeConditionSpec `json:"condition"`
+	Condition   *ProbeConditionSpec   `json:"condition,omitempty"`
+	FieldsEqual *ProbeFieldsEqualSpec `json:"fieldsEqual,omitempty"`
 }
 
 type ProbeType string
 
 const (
-	ProbeCondition ProbeType = "Condition"
+	ProbeCondition   ProbeType = "Condition"
+	ProbeFieldsEqual ProbeType = "FieldsEqual"
 )
 
 // Condition Probe parameters.
@@ -67,4 +74,9 @@ type ProbeConditionSpec struct {
 	// Condition status to probe for.
 	// +kubebuilder:default="True"
 	Status string `json:"status"`
+}
+
+type ProbeFieldsEqualSpec struct {
+	FieldA string `json:"fieldA"`
+	FieldB string `json:"fieldB"`
 }

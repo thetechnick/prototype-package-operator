@@ -2,7 +2,9 @@ package packageset
 
 import (
 	"fmt"
+	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,20 +48,31 @@ func parseProbes(probesSettings []packagesv1alpha1.PackageProbe) []probe {
 				Type:   probeSetting.Probe.Condition.Type,
 				Status: probeSetting.Probe.Condition.Status,
 			}
+
+		case packagesv1alpha1.ProbeFieldsEqual:
+			if probeSetting.Probe.FieldsEqual == nil {
+				continue
+			}
+
+			probe = &fieldsEqualProbe{
+				name:   probeSetting.Name,
+				fieldA: probeSetting.Probe.FieldsEqual.FieldA,
+				fieldB: probeSetting.Probe.FieldsEqual.FieldB,
+			}
 		}
 
 		// wrap filter type
-		switch probeSetting.Type {
-		case packagesv1alpha1.PackageProbeKind:
-			if probeSetting.Kind == nil {
+		switch probeSetting.Selector.Type {
+		case packagesv1alpha1.ProbeSelectorKind:
+			if probeSetting.Selector.Kind == nil {
 				continue
 			}
 
 			probe = &kindProbe{
 				probe: probe,
 				GroupKind: schema.GroupKind{
-					Group: probeSetting.Kind.APIGroup,
-					Kind:  probeSetting.Kind.Kind,
+					Group: probeSetting.Selector.Kind.Group,
+					Kind:  probeSetting.Selector.Kind.Kind,
 				},
 			}
 		}
@@ -88,6 +101,10 @@ func (cp *conditionProbe) Probe(obj *unstructured.Unstructured) bool {
 		return false
 	}
 
+	if observedGeneration, ok, err := unstructured.NestedInt64(obj.Object, "status", "observedGeneration"); err == nil && ok && observedGeneration != obj.GetGeneration() {
+		return false
+	}
+
 	for _, condI := range conditions {
 		cond, ok := condI.(map[string]interface{})
 		if !ok {
@@ -96,10 +113,43 @@ func (cp *conditionProbe) Probe(obj *unstructured.Unstructured) bool {
 
 		if cond["type"] == cp.Type &&
 			cond["status"] == cp.Status {
+			if observedGeneration, ok, err := unstructured.NestedInt64(cond, "observedGeneration"); err == nil && ok && observedGeneration != obj.GetGeneration() {
+				return false
+			}
+
 			return true
 		}
 	}
 	return false
+}
+
+type fieldsEqualProbe struct {
+	name           string
+	fieldA, fieldB string
+}
+
+func (fe *fieldsEqualProbe) Name() string {
+	return fe.name
+}
+
+func (fe *fieldsEqualProbe) Probe(obj *unstructured.Unstructured) bool {
+	if observedGeneration, ok, err := unstructured.NestedInt64(obj.Object, "status", "observedGeneration"); err == nil && ok && observedGeneration != obj.GetGeneration() {
+		return false
+	}
+
+	fieldAPath := strings.Split(strings.Trim(fe.fieldA, "."), ".")
+	fieldBPath := strings.Split(strings.Trim(fe.fieldB, "."), ".")
+
+	fieldAVal, ok, err := unstructured.NestedFieldCopy(obj.Object, fieldAPath...)
+	if err != nil || !ok {
+		return false
+	}
+	fieldBVal, ok, err := unstructured.NestedFieldCopy(obj.Object, fieldBPath...)
+	if err != nil || !ok {
+		return false
+	}
+
+	return equality.Semantic.DeepEqual(fieldAVal, fieldBVal)
 }
 
 type kindProbe struct {

@@ -2,15 +2,18 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // PackageSetSpec defines the desired state of a PackageSet.
 type PackageSetSpec struct {
+	// Archived will delete all unpaused objects and remove o
+	Archived bool `json:"archived,omitempty"`
+
 	// Paused disables reconcilation of the PackageSet,
 	// only Status updates will be propagated.
 	Paused bool `json:"paused,omitempty"`
 
+	// Pause reconcilation of specific objects.
 	PausedFor []PackagePausedObject `json:"pausedFor,omitempty"`
 
 	// Immutable fields below
@@ -20,21 +23,9 @@ type PackageSetSpec struct {
 }
 
 type PackagePausedObject struct {
-	Kind      string `json:"kind"`
-	Group     string `json:"group"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-}
-
-func (ppo *PackagePausedObject) Matches(obj client.Object) bool {
-	gvk := obj.GetObjectKind().GroupVersionKind()
-	if gvk.Group == ppo.Group &&
-		gvk.Kind == ppo.Kind &&
-		obj.GetName() == ppo.Name &&
-		obj.GetNamespace() == ppo.Namespace {
-		return true
-	}
-	return false
+	Kind  string `json:"kind"`
+	Group string `json:"group"`
+	Name  string `json:"name"`
 }
 
 // PackageSetStatus defines the observed state of a PackageSet
@@ -53,6 +44,7 @@ type PackageSetStatus struct {
 const (
 	PackageSetAvailable = "Available"
 	PackageSetPaused    = "Paused"
+	PackageSetArchived  = "Archived"
 )
 
 type PackageSetPhase string
@@ -64,6 +56,7 @@ const (
 	PackageSetPhaseAvailable   PackageSetPhase = "Available"
 	PackageSetPhaseNotReady    PackageSetPhase = "NotReady"
 	PackageSetPhaseTerminating PackageSetPhase = "Terminating"
+	PackageSetPhaseArchived    PackageSetPhase = "Archived"
 )
 
 // PackageSet is the Schema for the PackageSets API

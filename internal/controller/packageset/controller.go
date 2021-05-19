@@ -70,6 +70,42 @@ func (r *PackageSetReconciler) Reconcile(
 		}
 	}
 
+	if packageSet.Spec.Archived {
+		// Archive handling
+		for _, phase := range packageSet.Spec.Phases {
+			for _, phaseObject := range phase.Objects {
+				obj, err := unstructuredFromPackageObject(&phaseObject)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				obj.SetNamespace(packageSet.Namespace)
+
+				if isPaused(packageSet, obj) {
+					continue
+				}
+
+				if err := r.Delete(ctx, obj); err != nil && !errors.IsNotFound(err) {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+
+		meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
+			Type:               packagesv1alpha1.PackageSetArchived,
+			Status:             metav1.ConditionTrue,
+			Reason:             "Archived",
+			Message:            "PackageSet is archived.",
+			ObservedGeneration: packageSet.Generation,
+		})
+		packageSet.Status.PausedFor = packageSet.Spec.PausedFor
+		packageSet.Status.Phase = packagesv1alpha1.PackageSetArchived
+		packageSet.Status.ObservedGeneration = packageSet.Generation
+		if err := r.Status().Update(ctx, packageSet); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// Probes
 	probes := parseProbes(packageSet.Spec.ReadinessProbes)
 	for _, phase := range packageSet.Spec.Phases {
@@ -99,7 +135,7 @@ func (r *PackageSetReconciler) Reconcile(
 		Type:               packagesv1alpha1.PackageSetAvailable,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Available",
-		Message:            "Package is available an passes all probes.",
+		Message:            "Package is available and passes all probes.",
 		ObservedGeneration: packageSet.Generation,
 	})
 	packageSet.Status.PausedFor = packageSet.Spec.PausedFor
@@ -121,11 +157,10 @@ func (r *PackageSetReconciler) reconcilePhase(
 
 	// Reconcile objects in phase
 	for _, phaseObject := range phase.Objects {
-		obj := &unstructured.Unstructured{}
-		if err := yaml.Unmarshal(phaseObject.Object.Raw, obj); err != nil {
-			return false, fmt.Errorf("converting RawExtension into unstructured: %w", err)
+		obj, err := unstructuredFromPackageObject(&phaseObject)
+		if err != nil {
+			return false, err
 		}
-
 		if err := r.reconcileObject(ctx, packageSet, obj); err != nil {
 			return false, err
 		}
@@ -212,20 +247,11 @@ func (r *PackageSetReconciler) reconcileObject(
 		return fmt.Errorf("getting: %w", err)
 	}
 
-	if packageSet.Spec.Paused {
+	if isPaused(packageSet, obj) {
 		// Paused, don't reconcile.
 		// Just report the latest object state.
 		*obj = *currentObj
 		return nil
-	}
-
-	for _, pausedObject := range packageSet.Spec.PausedFor {
-		if pausedObject.Matches(obj) {
-			// Paused, don't reconcile.
-			// Just report the latest object state.
-			*obj = *currentObj
-			return nil
-		}
 	}
 
 	if errors.IsNotFound(err) {
@@ -267,4 +293,35 @@ func (r *PackageSetReconciler) reconcileObject(
 	}
 
 	return nil
+}
+
+func unstructuredFromPackageObject(packageObject *packagesv1alpha1.PackageObject) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	if err := yaml.Unmarshal(packageObject.Object.Raw, obj); err != nil {
+		return nil, fmt.Errorf("converting RawExtension into unstructured: %w", err)
+	}
+	return obj, nil
+}
+
+func isPaused(packageSet *packagesv1alpha1.PackageSet, obj client.Object) bool {
+	if packageSet.Spec.Paused {
+		return true
+	}
+
+	for _, pausedObject := range packageSet.Spec.PausedFor {
+		if pausedObjectMatches(pausedObject, obj) {
+			return true
+		}
+	}
+	return false
+}
+
+func pausedObjectMatches(ppo packagesv1alpha1.PackagePausedObject, obj client.Object) bool {
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	if gvk.Group == ppo.Group &&
+		gvk.Kind == ppo.Kind &&
+		obj.GetName() == ppo.Name {
+		return true
+	}
+	return false
 }

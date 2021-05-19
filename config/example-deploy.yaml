@@ -45,13 +45,25 @@ spec:
                     ports:
                     - containerPort: 80
       readinessProbes:
-      - type: Kind
-        name: Available
+      - name: Available
+        selector:
+          type: Kind
+          kind:
+            group: apps
+            kind: Deployment
         probe:
           type: Condition
           condition:
             type: Available
             status: "True"
-        kind:
-          apiGroup: apps
-          kind: Deployment
+      - name: Updated
+        selector:
+          type: Kind
+          kind:
+            group: apps
+            kind: Deployment
+        probe:
+          type: FieldsEqual
+          fieldsEqual:
+            fieldA: .status.updatedReplicas
+            fieldB: .status.replicas
