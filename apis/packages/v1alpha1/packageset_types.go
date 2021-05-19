@@ -37,7 +37,8 @@ type PackageSetStatus struct {
 	// DEPRECATED: This field is not part of any API contract
 	// it will go away as soon as kubectl can print conditions!
 	// Human readable status - please use .Conditions from code
-	Phase     PackageSetPhase       `json:"phase,omitempty"`
+	Phase PackageSetPhase `json:"phase,omitempty"`
+	// List of objects, the controller has paused reconcilation on.
 	PausedFor []PackagePausedObject `json:"pausedFor,omitempty"`
 }
 
@@ -52,11 +53,10 @@ type PackageSetPhase string
 // Well-known PackageSet Phases for printing a Status in kubectl,
 // see deprecation notice in PackageSetStatus for details.
 const (
-	PackageSetPhasePending     PackageSetPhase = "Pending"
-	PackageSetPhaseAvailable   PackageSetPhase = "Available"
-	PackageSetPhaseNotReady    PackageSetPhase = "NotReady"
-	PackageSetPhaseTerminating PackageSetPhase = "Terminating"
-	PackageSetPhaseArchived    PackageSetPhase = "Archived"
+	PackageSetPhasePending   PackageSetPhase = "Pending"
+	PackageSetPhaseAvailable PackageSetPhase = "Available"
+	PackageSetPhaseNotReady  PackageSetPhase = "NotReady"
+	PackageSetPhaseArchived  PackageSetPhase = "Archived"
 )
 
 // PackageSet is the Schema for the PackageSets API

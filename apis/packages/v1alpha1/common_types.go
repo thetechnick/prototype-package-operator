@@ -76,6 +76,7 @@ type ProbeConditionSpec struct {
 	Status string `json:"status"`
 }
 
+// Compares two fields specified by JSON Paths.
 type ProbeFieldsEqualSpec struct {
 	FieldA string `json:"fieldA"`
 	FieldB string `json:"fieldB"`

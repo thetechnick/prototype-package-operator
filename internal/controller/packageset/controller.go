@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
+	internalprobe "github.com/thetechnick/package-operator/internal/probe"
 )
 
 type PackageSetReconciler struct {
@@ -48,9 +49,7 @@ const (
 	packageSetLabel          = "packages.thetechnick.ninja/package-set"
 )
 
-func (r *PackageSetReconciler) Reconcile(
-	ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
+func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	packageSet := &packagesv1alpha1.PackageSet{}
 	if err := r.Get(ctx, req.NamespacedName, packageSet); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -72,38 +71,7 @@ func (r *PackageSetReconciler) Reconcile(
 
 	if packageSet.Spec.Archived {
 		// Archive handling
-		for _, phase := range packageSet.Spec.Phases {
-			for _, phaseObject := range phase.Objects {
-				obj, err := unstructuredFromPackageObject(&phaseObject)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				obj.SetNamespace(packageSet.Namespace)
-
-				if isPaused(packageSet, obj) {
-					continue
-				}
-
-				if err := r.Delete(ctx, obj); err != nil && !errors.IsNotFound(err) {
-					return ctrl.Result{}, err
-				}
-			}
-		}
-
-		meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
-			Type:               packagesv1alpha1.PackageSetArchived,
-			Status:             metav1.ConditionTrue,
-			Reason:             "Archived",
-			Message:            "PackageSet is archived.",
-			ObservedGeneration: packageSet.Generation,
-		})
-		packageSet.Status.PausedFor = packageSet.Spec.PausedFor
-		packageSet.Status.Phase = packagesv1alpha1.PackageSetArchived
-		packageSet.Status.ObservedGeneration = packageSet.Generation
-		if err := r.Status().Update(ctx, packageSet); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.handleArchived(ctx, packageSet)
 	}
 
 	// Probes
@@ -131,6 +99,7 @@ func (r *PackageSetReconciler) Reconcile(
 			&packageSet.Status.Conditions, packagesv1alpha1.PackageSetPaused)
 	}
 
+	meta.RemoveStatusCondition(&packageSet.Status.Conditions, packagesv1alpha1.PackageSetArchived)
 	meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
 		Type:               packagesv1alpha1.PackageSetAvailable,
 		Status:             metav1.ConditionTrue,
@@ -151,7 +120,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.PackageSet,
 	phase *packagesv1alpha1.PackagePhase,
-	probes []probe,
+	probes []internalprobe.NamedProbe,
 ) (stop bool, err error) {
 	var failedProbes []string
 
@@ -168,7 +137,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 		for _, probe := range probes {
 			if !probe.Probe(obj) {
 				failedProbes = append(failedProbes, probeFailure{
-					ProbeName: probe.Name(),
+					ProbeName: probe.GetName(),
 					Object:    obj,
 				}.String())
 			}
@@ -209,6 +178,47 @@ func (r *PackageSetReconciler) handleDeletion(
 		}
 	}
 
+	if err := r.dw.Free(packageSet); err != nil {
+		return fmt.Errorf("free cache: %w", err)
+	}
+	return nil
+}
+
+func (r *PackageSetReconciler) handleArchived(
+	ctx context.Context,
+	packageSet *packagesv1alpha1.PackageSet,
+) error {
+	for _, phase := range packageSet.Spec.Phases {
+		for _, phaseObject := range phase.Objects {
+			obj, err := unstructuredFromPackageObject(&phaseObject)
+			if err != nil {
+				return err
+			}
+			obj.SetNamespace(packageSet.Namespace)
+
+			if !isPaused(packageSet, obj) {
+				if err := r.Delete(ctx, obj); err != nil && !errors.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+	}
+
+	meta.RemoveStatusCondition(&packageSet.Status.Conditions, packagesv1alpha1.PackageSetPaused)
+	meta.RemoveStatusCondition(&packageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable)
+	meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
+		Type:               packagesv1alpha1.PackageSetArchived,
+		Status:             metav1.ConditionTrue,
+		Reason:             "Archived",
+		Message:            "PackageSet is archived.",
+		ObservedGeneration: packageSet.Generation,
+	})
+	packageSet.Status.PausedFor = packageSet.Spec.PausedFor
+	packageSet.Status.Phase = packagesv1alpha1.PackageSetArchived
+	packageSet.Status.ObservedGeneration = packageSet.Generation
+	if err := r.Status().Update(ctx, packageSet); err != nil {
+		return err
+	}
 	if err := r.dw.Free(packageSet); err != nil {
 		return fmt.Errorf("free cache: %w", err)
 	}

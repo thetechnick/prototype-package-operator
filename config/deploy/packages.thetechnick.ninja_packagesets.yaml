@@ -254,6 +254,8 @@ spec:
                 format: int64
                 type: integer
               pausedFor:
+                description: List of objects, the controller has paused reconcilation
+                  on.
                 items:
                   properties:
                     group:

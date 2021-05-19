@@ -146,7 +146,6 @@ func (r *PackageDeploymentReconciler) Reconcile(
 	if meta.IsStatusConditionTrue(
 		currentPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
 		currentPackageSet.Generation == currentPackageSet.Status.ObservedGeneration {
-		log.Info("New PackageSet Available, archiving old ones!", "PackageSet", client.ObjectKeyFromObject(currentPackageSet))
 		for _, oldPackageSet := range oldPackageSets {
 			oldPackageSet.Spec.Archived = true
 			if err := r.Update(ctx, &oldPackageSet); err != nil {
