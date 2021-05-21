@@ -2,6 +2,19 @@ package v1alpha1
 
 import "k8s.io/apimachinery/pkg/runtime"
 
+// PackageSet specification.
+type PackageSetTemplateSpec struct {
+	// Reconcile phase configuration for a PackageSet.
+	// Objects in each phase will be reconciled in order and checked with
+	// given ReadinessProbes before continuing with the next phase.
+	Phases []PackagePhase `json:"phases"`
+	// Readiness Probes check objects that are part of the package.
+	// All probes need to succeed for a package to be considered Available.
+	// Failing probes will prevent the reconcilation of objects in later phases.
+	ReadinessProbes []PackageProbe      `json:"readinessProbes"`
+	Dependencies    []PackageDependency `json:"dependencies,omitempty"`
+}
+
 // Package reconcile phase.
 // Packages are reconciled
 type PackagePhase struct {
@@ -80,4 +93,28 @@ type ProbeConditionSpec struct {
 type ProbeFieldsEqualSpec struct {
 	FieldA string `json:"fieldA"`
 	FieldB string `json:"fieldB"`
+}
+
+// Package dependency describes prequesites of a package,
+// that need to be met prior to installation.
+type PackageDependency struct {
+	Type          PackageDependencyType               `json:"type"`
+	KubernetesAPI *PackageDependencyKubernetesAPISpec `json:"kubernetesAPI,omitempty"`
+}
+
+type PackageDependencyType string
+
+const (
+	// Declares to depend on a certain Kubernetes API.
+	PackageDependencyKubernetesAPI PackageDependencyType = "KubernetesAPI"
+)
+
+// KubernetesAPI Dependency parameters.
+type PackageDependencyKubernetesAPISpec struct {
+	// Group of the API.
+	Group string `json:"group,omitempty"`
+	// Version of the API.
+	Version string `json:"version"`
+	// Kind of the API.
+	Kind string `json:"kind"`
 }

@@ -76,10 +76,7 @@ func (r *PackageDeploymentReconciler) Reconcile(
 			Labels:      packageDeployment.Spec.Template.Metadata.Labels,
 		},
 		Spec: packagesv1alpha1.PackageSetSpec{
-			Phases: packageDeployment.
-				Spec.Template.Spec.Phases,
-			ReadinessProbes: packageDeployment.
-				Spec.Template.Spec.ReadinessProbes,
+			PackageSetTemplateSpec: packageDeployment.Spec.Template.Spec,
 		},
 	}
 	if newPackageSet.Annotations == nil {
@@ -99,8 +96,7 @@ func (r *PackageDeploymentReconciler) Reconcile(
 		outdatedPackageSets []packagesv1alpha1.PackageSet
 	)
 	for i := range packageSets {
-		if equality.Semantic.DeepEqual(newPackageSet.Spec.Phases, packageSets[i].Spec.Phases) &&
-			equality.Semantic.DeepEqual(newPackageSet.Spec.ReadinessProbes, packageSets[i].Spec.ReadinessProbes) &&
+		if equality.Semantic.DeepEqual(newPackageSet.Spec.PackageSetTemplateSpec, packageSets[i].Spec.PackageSetTemplateSpec) &&
 			!meta.IsStatusConditionTrue(packageSets[i].Status.Conditions, packagesv1alpha1.PackageSetArchived) {
 			currentPackageSet = packageSets[i].DeepCopy()
 			continue
@@ -161,8 +157,7 @@ func (r *PackageDeploymentReconciler) Reconcile(
 				return ctrl.Result{}, fmt.Errorf("check owner on conflicting PackageSet: %w", err)
 			}
 			if isOwner &&
-				equality.Semantic.DeepEqual(newPackageSet.Spec.Phases, conflictingPackageSet.Spec.Phases) &&
-				equality.Semantic.DeepEqual(newPackageSet.Spec.ReadinessProbes, conflictingPackageSet.Spec.ReadinessProbes) &&
+				equality.Semantic.DeepEqual(newPackageSet.Spec.PackageSetTemplateSpec, conflictingPackageSet.Spec.PackageSetTemplateSpec) &&
 				!meta.IsStatusConditionTrue(conflictingPackageSet.Status.Conditions, packagesv1alpha1.PackageSetArchived) {
 				// Hey! This looks like what we wanted to create anyway.
 				// Looks like a slow cache.
@@ -340,24 +335,6 @@ func pausedObjectsFromPackageSet(packageSet *packagesv1alpha1.PackageSet) ([]pac
 		}
 	}
 	return pausedObject, nil
-}
-
-func sortPackageSets(
-	templateHash string,
-	packageSets []packagesv1alpha1.PackageSet,
-) (
-	current *packagesv1alpha1.PackageSet,
-	rest []packagesv1alpha1.PackageSet,
-) {
-	for _, packageSet := range packageSets {
-		if packageSet.Annotations[packageSetHashAnnotation] == templateHash {
-			current = packageSet.DeepCopy()
-			continue
-		}
-		rest = append(rest, packageSet)
-	}
-	sort.Sort(packageSetsByRevision(rest))
-	return
 }
 
 // computeHash returns a hash value calculated from pod template and

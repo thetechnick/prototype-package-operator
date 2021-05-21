@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -64,6 +65,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to setup discovery client")
+		os.Exit(1)
+	}
+
 	// -----
 	// PPROF
 	// -----
@@ -102,10 +109,11 @@ func main() {
 	}
 
 	if err = (&packagesetcontroller.PackageSetReconciler{
-		Client:        mgr.GetClient(),
-		DynamicClient: dynamicClient,
-		Log:           ctrl.Log.WithName("controllers").WithName("PackageSet"),
-		Scheme:        mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		DynamicClient:   dynamicClient,
+		DiscoveryClient: discoveryClient,
+		Log:             ctrl.Log.WithName("controllers").WithName("PackageSet"),
+		Scheme:          mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PackageSet")
 		os.Exit(1)

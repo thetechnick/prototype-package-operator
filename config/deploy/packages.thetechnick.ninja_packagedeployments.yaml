@@ -118,6 +118,33 @@ spec:
                   spec:
                     description: PackageSet specification.
                     properties:
+                      dependencies:
+                        items:
+                          description: Package dependency describes prequesites of
+                            a package, that need to be met prior to installation.
+                          properties:
+                            kubernetesAPI:
+                              description: KubernetesAPI Dependency parameters.
+                              properties:
+                                group:
+                                  description: Group of the API.
+                                  type: string
+                                kind:
+                                  description: Kind of the API.
+                                  type: string
+                                version:
+                                  description: Version of the API.
+                                  type: string
+                              required:
+                              - kind
+                              - version
+                              type: object
+                            type:
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        type: array
                       phases:
                         description: Reconcile phase configuration for a PackageSet.
                           Objects in each phase will be reconciled in order and checked

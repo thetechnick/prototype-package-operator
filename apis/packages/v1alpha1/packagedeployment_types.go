@@ -23,18 +23,6 @@ type PackageSetTemplate struct {
 	Spec PackageSetTemplateSpec `json:"spec"`
 }
 
-// PackageSet specification.
-type PackageSetTemplateSpec struct {
-	// Reconcile phase configuration for a PackageSet.
-	// Objects in each phase will be reconciled in order and checked with
-	// given ReadinessProbes before continuing with the next phase.
-	Phases []PackagePhase `json:"phases"`
-	// Readiness Probes check objects that are part of the package.
-	// All probes need to succeed for a package to be considered Available.
-	// Failing probes will prevent the reconcilation of objects in later phases.
-	ReadinessProbes []PackageProbe `json:"readinessProbes"`
-}
-
 // PackageDeploymentStatus defines the observed state of a PackageDeployment
 type PackageDeploymentStatus struct {
 	// The most recent generation observed by the controller.

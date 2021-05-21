@@ -15,15 +15,14 @@ type PackageSetSpec struct {
 	PausedFor []PackagePausedObject `json:"pausedFor,omitempty"`
 
 	// Immutable fields below
+	PackageSetTemplateSpec `json:",inline"`
+}
 
-	// Reconcile phase configuration for a PackageSet.
-	// Objects in each phase will be reconciled in order and checked with
-	// given ReadinessProbes before continuing with the next phase.
-	Phases []PackagePhase `json:"phases"`
-	// Readiness Probes check objects that are part of the package.
-	// All probes need to succeed for a package to be considered Available.
-	// Failing probes will prevent the reconcilation of objects in later phases.
-	ReadinessProbes []PackageProbe `json:"readinessProbes"`
+type PackageDependencyCRD struct {
+	// Name of the Custom Resource Definition to probe for.
+	Name string `json:"name"`
+	// API Version the CRD must
+	Version string `json:"version"`
 }
 
 // Specifies that the reconcilation of a specific object should be paused.
@@ -61,10 +60,11 @@ type PackageSetPhase string
 // Well-known PackageSet Phases for printing a Status in kubectl,
 // see deprecation notice in PackageSetStatus for details.
 const (
-	PackageSetPhasePending   PackageSetPhase = "Pending"
-	PackageSetPhaseAvailable PackageSetPhase = "Available"
-	PackageSetPhaseNotReady  PackageSetPhase = "NotReady"
-	PackageSetPhaseArchived  PackageSetPhase = "Archived"
+	PackageSetPhasePending           PackageSetPhase = "Pending"
+	PackageSetPhaseAvailable         PackageSetPhase = "Available"
+	PackageSetPhaseNotReady          PackageSetPhase = "NotReady"
+	PackageSetPhaseMissingDependency PackageSetPhase = "MissingDependency"
+	PackageSetPhaseArchived          PackageSetPhase = "Archived"
 )
 
 // PackageSet is the Schema for the PackageSets API

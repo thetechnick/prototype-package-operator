@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -12,6 +13,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,9 +28,10 @@ import (
 
 type PackageSetReconciler struct {
 	client.Client
-	DynamicClient dynamic.Interface
-	Log           logr.Logger
-	Scheme        *runtime.Scheme
+	DynamicClient   dynamic.Interface
+	DiscoveryClient *discovery.DiscoveryClient
+	Log             logr.Logger
+	Scheme          *runtime.Scheme
 
 	dw *dynamicWatcher
 }
@@ -76,6 +80,17 @@ func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, r.handleArchived(ctx, packageSet)
 	}
 
+	// Dependencies
+	stop, err := r.checkDependencies(ctx, packageSet)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if stop {
+		// TODO: find a better Requeue Time
+		log.Info("dependency check failed", "nextCheck", 30*time.Second)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
 	// Probes
 	probes := parseProbes(packageSet.Spec.ReadinessProbes)
 	for _, phase := range packageSet.Spec.Phases {
@@ -116,6 +131,72 @@ func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *PackageSetReconciler) checkDependencies(
+	ctx context.Context,
+	packageSet *packagesv1alpha1.PackageSet,
+) (stop bool, err error) {
+	if len(packageSet.Spec.Dependencies) == 0 {
+		return false, nil
+	}
+
+	_, apiResourceLists, err := r.DiscoveryClient.ServerGroupsAndResources()
+	if err != nil {
+		return false, fmt.Errorf("discovering available APIs: %w", err)
+	}
+
+	var missingGKV []string
+	for _, dependency := range packageSet.Spec.Dependencies {
+		if dependency.KubernetesAPI == nil {
+			continue
+		}
+
+		gvk := schema.GroupVersionKind{
+			Group:   dependency.KubernetesAPI.Group,
+			Version: dependency.KubernetesAPI.Version,
+			Kind:    dependency.KubernetesAPI.Kind,
+		}
+		if !hasGVK(gvk, apiResourceLists) {
+			missingGKV = append(missingGKV, gvk.String())
+		}
+	}
+
+	if len(missingGKV) > 0 {
+		meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
+			Type:               packagesv1alpha1.PackageSetAvailable,
+			Status:             metav1.ConditionFalse,
+			Reason:             "MissingDependency",
+			Message:            fmt.Sprintf("Missing objects in kubernetes API: %s", strings.Join(missingGKV, ", ")),
+			ObservedGeneration: packageSet.Generation,
+		})
+		packageSet.Status.Phase = packagesv1alpha1.PackageSetPhaseMissingDependency
+		packageSet.Status.ObservedGeneration = packageSet.Generation
+		if err := r.Status().Update(ctx, packageSet); err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func hasGVK(gvk schema.GroupVersionKind, apiResourceLists []*metav1.APIResourceList) bool {
+	for _, apiResourceList := range apiResourceLists {
+		if apiResourceList == nil {
+			continue
+		}
+
+		if gvk.GroupVersion().String() == apiResourceList.GroupVersion {
+			for _, apiResource := range apiResourceList.APIResources {
+				if gvk.Kind == apiResource.Kind {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (r *PackageSetReconciler) reconcilePhase(
