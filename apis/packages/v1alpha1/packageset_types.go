@@ -8,24 +8,32 @@ import (
 type PackageSetSpec struct {
 	// Archived will delete all unpaused objects and remove o
 	Archived bool `json:"archived,omitempty"`
-
 	// Paused disables reconcilation of the PackageSet,
 	// only Status updates will be propagated.
 	Paused bool `json:"paused,omitempty"`
-
 	// Pause reconcilation of specific objects.
 	PausedFor []PackagePausedObject `json:"pausedFor,omitempty"`
 
 	// Immutable fields below
 
-	Phases          []PackagePhase `json:"phases"`
+	// Reconcile phase configuration for a PackageSet.
+	// Objects in each phase will be reconciled in order and checked with
+	// given ReadinessProbes before continuing with the next phase.
+	Phases []PackagePhase `json:"phases"`
+	// Readiness Probes check objects that are part of the package.
+	// All probes need to succeed for a package to be considered Available.
+	// Failing probes will prevent the reconcilation of objects in later phases.
 	ReadinessProbes []PackageProbe `json:"readinessProbes"`
 }
 
+// Specifies that the reconcilation of a specific object should be paused.
 type PackagePausedObject struct {
-	Kind  string `json:"kind"`
+	// Object Kind.
+	Kind string `json:"kind"`
+	// Object Group.
 	Group string `json:"group"`
-	Name  string `json:"name"`
+	// Object Name.
+	Name string `json:"name"`
 }
 
 // PackageSetStatus defines the observed state of a PackageSet

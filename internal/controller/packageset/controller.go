@@ -50,6 +50,8 @@ const (
 )
 
 func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("PackageSet", req.NamespacedName.String())
+
 	packageSet := &packagesv1alpha1.PackageSet{}
 	if err := r.Get(ctx, req.NamespacedName, packageSet); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -77,7 +79,7 @@ func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Probes
 	probes := parseProbes(packageSet.Spec.ReadinessProbes)
 	for _, phase := range packageSet.Spec.Phases {
-		stop, err := r.reconcilePhase(ctx, packageSet, &phase, probes)
+		stop, err := r.reconcilePhase(ctx, packageSet, &phase, probes, log)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -121,6 +123,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 	packageSet *packagesv1alpha1.PackageSet,
 	phase *packagesv1alpha1.PackagePhase,
 	probes []internalprobe.NamedProbe,
+	log logr.Logger,
 ) (stop bool, err error) {
 	var failedProbes []string
 
@@ -130,7 +133,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 		if err != nil {
 			return false, err
 		}
-		if err := r.reconcileObject(ctx, packageSet, obj); err != nil {
+		if err := r.reconcileObject(ctx, packageSet, obj, log); err != nil {
 			return false, err
 		}
 
@@ -229,6 +232,7 @@ func (r *PackageSetReconciler) reconcileObject(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.PackageSet,
 	obj *unstructured.Unstructured,
+	log logr.Logger,
 ) error {
 	// Add our own label
 	labels := obj.GetLabels()
@@ -279,7 +283,6 @@ func (r *PackageSetReconciler) reconcileObject(
 			break
 		}
 	}
-
 	// Let's take over ownership from the other PackageSet.
 	var newOwnerRefs []metav1.OwnerReference
 	for _, ownerRef := range currentObj.GetOwnerReferences() {
@@ -288,15 +291,34 @@ func (r *PackageSetReconciler) reconcileObject(
 	}
 	obj.SetOwnerReferences(newOwnerRefs)
 
+	if !isOwner {
+		// Just patch the OwnerReferences of the object,
+		// or we by pass the DeepDerivative check and
+		// might update other object properties.
+		updatedOwnersObj := currentObj.DeepCopy()
+		updatedOwnersObj.SetOwnerReferences(newOwnerRefs)
+		log.Info("patching for ownership", "obj", client.ObjectKeyFromObject(obj))
+		if err := r.Patch(ctx, currentObj, client.MergeFrom(updatedOwnersObj)); err != nil {
+			return fmt.Errorf("patching Owners: %w", err)
+		}
+	}
+
 	if err := controllerutil.SetControllerReference(packageSet, obj, r.Scheme); err != nil {
 		return err
 	}
 
 	// Update
 	if !equality.Semantic.DeepDerivative(obj.Object, currentObj.Object) {
-		err := r.Update(ctx, obj)
+		log.Info("patching spec", "obj", client.ObjectKeyFromObject(obj))
+		// this is only updating "known" fields,
+		// so annotations/labels and other properties will be preserved.
+		err := r.Patch(
+			ctx, obj, client.MergeFrom(&unstructured.Unstructured{}))
+
+		// Alternative to override the object completely:
+		// err := r.Update(ctx, obj)
 		if err != nil {
-			return fmt.Errorf("updating: %w", err)
+			return fmt.Errorf("patching spec: %w", err)
 		}
 	} else {
 		*obj = *currentObj

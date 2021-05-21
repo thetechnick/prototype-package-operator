@@ -54,12 +54,17 @@ spec:
               pausedFor:
                 description: Pause reconcilation of specific objects.
                 items:
+                  description: Specifies that the reconcilation of a specific object
+                    should be paused.
                   properties:
                     group:
+                      description: Object Group.
                       type: string
                     kind:
+                      description: Object Kind.
                       type: string
                     name:
+                      description: Object Name.
                       type: string
                   required:
                   - group
@@ -68,6 +73,9 @@ spec:
                   type: object
                 type: array
               phases:
+                description: Reconcile phase configuration for a PackageSet. Objects
+                  in each phase will be reconciled in order and checked with given
+                  ReadinessProbes before continuing with the next phase.
                 items:
                   description: Package reconcile phase. Packages are reconciled
                   properties:
@@ -93,6 +101,10 @@ spec:
                   type: object
                 type: array
               readinessProbes:
+                description: Readiness Probes check objects that are part of the package.
+                  All probes need to succeed for a package to be considered Available.
+                  Failing probes will prevent the reconcilation of objects in later
+                  phases.
                 items:
                   description: Package probes define how packages are checked for
                     their status.
@@ -258,12 +270,17 @@ spec:
                 description: List of objects, the controller has paused reconcilation
                   on.
                 items:
+                  description: Specifies that the reconcilation of a specific object
+                    should be paused.
                   properties:
                     group:
+                      description: Object Group.
                       type: string
                     kind:
+                      description: Object Kind.
                       type: string
                     name:
+                      description: Object Name.
                       type: string
                   required:
                   - group

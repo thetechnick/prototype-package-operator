@@ -44,12 +44,12 @@ spec:
             description: PackageDeploymentSpec defines the desired state of a PackageDeployment.
             properties:
               revisionHistoryLimit:
+                default: 5
+                description: Number of old revisions in the form of archived PackageSets
+                  to keep.
                 type: integer
               selector:
-                description: A label selector is a label query over a set of resources.
-                  The result of matchLabels and matchExpressions are ANDed. An empty
-                  label selector matches all objects. A null label selector matches
-                  no objects.
+                description: Selector targets PackageSets managed by this Deployment.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -93,8 +93,10 @@ spec:
                     type: object
                 type: object
               template:
+                description: Template to create new PackageSets from.
                 properties:
                   metadata:
+                    description: Common Object Metadata.
                     properties:
                       annotations:
                         additionalProperties:
@@ -114,8 +116,13 @@ spec:
                         type: string
                     type: object
                   spec:
+                    description: PackageSet specification.
                     properties:
                       phases:
+                        description: Reconcile phase configuration for a PackageSet.
+                          Objects in each phase will be reconciled in order and checked
+                          with given ReadinessProbes before continuing with the next
+                          phase.
                         items:
                           description: Package reconcile phase. Packages are reconciled
                           properties:
@@ -141,6 +148,10 @@ spec:
                           type: object
                         type: array
                       readinessProbes:
+                        description: Readiness Probes check objects that are part
+                          of the package. All probes need to succeed for a package
+                          to be considered Available. Failing probes will prevent
+                          the reconcilation of objects in later phases.
                         items:
                           description: Package probes define how packages are checked
                             for their status.

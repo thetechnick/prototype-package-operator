@@ -6,18 +6,32 @@ import (
 
 // PackageDeploymentSpec defines the desired state of a PackageDeployment.
 type PackageDeploymentSpec struct {
-	RevisionHistoryLimit *int                 `json:"revisionHistoryLimit,omitempty"`
-	Selector             metav1.LabelSelector `json:"selector"`
-	Template             PackageSetTemplate   `json:"template"`
+	// Number of old revisions in the form of archived PackageSets to keep.
+	// +kubebuilder:default=5
+	RevisionHistoryLimit *int `json:"revisionHistoryLimit,omitempty"`
+	// Selector targets PackageSets managed by this Deployment.
+	Selector metav1.LabelSelector `json:"selector"`
+	// Template to create new PackageSets from.
+	Template PackageSetTemplate `json:"template"`
 }
 
+// PackageSetTemplate describes the template to create new PackageSets from.
 type PackageSetTemplate struct {
-	Metadata metav1.ObjectMeta      `json:"metadata"`
-	Spec     PackageSetTemplateSpec `json:"spec"`
+	// Common Object Metadata.
+	Metadata metav1.ObjectMeta `json:"metadata"`
+	// PackageSet specification.
+	Spec PackageSetTemplateSpec `json:"spec"`
 }
 
+// PackageSet specification.
 type PackageSetTemplateSpec struct {
-	Phases          []PackagePhase `json:"phases"`
+	// Reconcile phase configuration for a PackageSet.
+	// Objects in each phase will be reconciled in order and checked with
+	// given ReadinessProbes before continuing with the next phase.
+	Phases []PackagePhase `json:"phases"`
+	// Readiness Probes check objects that are part of the package.
+	// All probes need to succeed for a package to be considered Available.
+	// Failing probes will prevent the reconcilation of objects in later phases.
 	ReadinessProbes []PackageProbe `json:"readinessProbes"`
 }
 

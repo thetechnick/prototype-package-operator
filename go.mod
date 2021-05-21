@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-logr/logr v0.4.0
+	github.com/stretchr/testify v1.6.1
 	k8s.io/apimachinery v0.21.0
 	k8s.io/client-go v0.20.2
 	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
