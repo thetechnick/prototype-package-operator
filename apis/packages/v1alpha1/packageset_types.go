@@ -53,6 +53,9 @@ const (
 	PackageSetAvailable = "Available"
 	PackageSetPaused    = "Paused"
 	PackageSetArchived  = "Archived"
+	// Succeeded condition is only set once,
+	// after a PackageSet became Available for the first time.
+	PackageSetSucceeded = "Succeeded"
 )
 
 type PackageSetPhase string

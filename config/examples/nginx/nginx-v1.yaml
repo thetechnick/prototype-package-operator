@@ -28,8 +28,6 @@ spec:
               name: nginx-deployment-v1
               labels:
                 app: nginx
-              annotations:
-                packages.thetechnick.ninja/phase: deploy
             spec:
               replicas: 2
               selector:
@@ -46,25 +44,17 @@ spec:
                     ports:
                     - containerPort: 80
       readinessProbes:
-      - name: Available
-        selector:
+      - selector:
           type: Kind
           kind:
             group: apps
             kind: Deployment
-        probe:
-          type: Condition
+        probes:
+        - type: Condition
           condition:
             type: Available
             status: "True"
-      - name: Updated
-        selector:
-          type: Kind
-          kind:
-            group: apps
-            kind: Deployment
-        probe:
-          type: FieldsEqual
+        - type: FieldsEqual
           fieldsEqual:
             fieldA: .status.updatedReplicas
             fieldB: .status.replicas

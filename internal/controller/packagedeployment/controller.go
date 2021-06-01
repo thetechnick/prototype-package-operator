@@ -178,9 +178,53 @@ func (r *PackageDeploymentReconciler) Reconcile(
 	}
 
 	var packageDeploymentAvailable bool
+	var packageSetsForCleanup []packagesv1alpha1.PackageSet
 	if meta.IsStatusConditionTrue(
 		currentPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
 		currentPackageSet.Generation == currentPackageSet.Status.ObservedGeneration {
+
+		// all old PackageSets are ready for cleanup,
+		// because we progressed to a newer version.
+		packageSetsForCleanup = outdatedPackageSets
+
+		packageDeploymentAvailable = true
+
+		// We are also no longer progressing, because the latest version is available
+		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
+			Type:               packagesv1alpha1.PackageDeploymentProgressing,
+			Status:             metav1.ConditionFalse,
+			Reason:             "Idle",
+			Message:            "Update concluded.",
+			ObservedGeneration: packageDeployment.Generation,
+		})
+		packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentAvailable
+	} else {
+		// The latest PackageSet is not Available, but that's Ok, if an earlier one is still up and running.
+		for _, outdatedPackageSet := range outdatedPackageSets {
+			if meta.IsStatusConditionTrue(
+				outdatedPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
+				outdatedPackageSet.Generation == outdatedPackageSet.Status.ObservedGeneration {
+				// Alright! \o/
+				packageDeploymentAvailable = true
+				continue
+			}
+
+			// Everything else goes onto the garbage pile for cleanup
+			packageSetsForCleanup = append(packageSetsForCleanup, outdatedPackageSet)
+		}
+
+		// This also means that we are progressing to a new PackageSet, so better report that
+		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
+			Type:               packagesv1alpha1.PackageDeploymentProgressing,
+			Status:             metav1.ConditionTrue,
+			Reason:             "Progressing",
+			Message:            "Progressing to a new PackageSet.",
+			ObservedGeneration: packageDeployment.Generation,
+		})
+		packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentPhaseProgressing
+	}
+
+	if packageDeploymentAvailable {
 		// Delete PackageSets over limit
 		revisionLimit := 5
 		if packageDeployment.Spec.RevisionHistoryLimit != nil {
@@ -188,9 +232,8 @@ func (r *PackageDeploymentReconciler) Reconcile(
 		}
 		outdatedPackagSetsToDelete := len(outdatedPackageSets) - revisionLimit
 
-		// The latest PackageSet is up and ready.
-		// Ensure to archive or delete all old PackageSets.
-		for _, outdatedPackageSet := range outdatedPackageSets {
+		// Some PackageSet is up and ready, so we can cleanup old stuff.
+		for _, outdatedPackageSet := range packageSetsForCleanup {
 			if outdatedPackagSetsToDelete > outdatedPackageSetsDeleted {
 				if err := r.Delete(ctx, &outdatedPackageSet); err != nil {
 					return ctrl.Result{}, fmt.Errorf("delete outdated PackageSet: %w", err)
@@ -205,21 +248,6 @@ func (r *PackageDeploymentReconciler) Reconcile(
 			}
 		}
 
-		packageDeploymentAvailable = true
-	} else {
-		// The latest PackageSet is not Available, but that's Ok, if the last one is still up and running.
-		if len(outdatedPackageSets) > 0 {
-			previousPackageSet := outdatedPackageSets[len(outdatedPackageSets)-1]
-			if meta.IsStatusConditionTrue(
-				previousPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
-				previousPackageSet.Generation == previousPackageSet.Status.ObservedGeneration {
-				// Alright!
-				packageDeploymentAvailable = true
-			}
-		}
-	}
-
-	if packageDeploymentAvailable {
 		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
 			Type:               packagesv1alpha1.PackageDeploymentAvailable,
 			Status:             metav1.ConditionTrue,
@@ -227,7 +255,6 @@ func (r *PackageDeploymentReconciler) Reconcile(
 			Message:            "At least one revision PackageSet is Available.",
 			ObservedGeneration: packageDeployment.Generation,
 		})
-		packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentAvailable
 		packageDeployment.Status.ObservedGeneration = packageDeployment.Generation
 		if err := r.Status().Update(ctx, packageDeployment); err != nil {
 			return ctrl.Result{}, err

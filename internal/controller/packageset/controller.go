@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
-	internalprobe "github.com/thetechnick/package-operator/internal/probe"
+	internalprobe "github.com/thetechnick/package-operator/internal/controller/packageset/probe"
 )
 
 type PackageSetReconciler struct {
@@ -116,6 +116,16 @@ func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			&packageSet.Status.Conditions, packagesv1alpha1.PackageSetPaused)
 	}
 
+	// Ensure we are recording that the RecordSet succeeded
+	if !meta.IsStatusConditionTrue(packageSet.Status.Conditions, packagesv1alpha1.PackageSetSucceeded) {
+		meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
+			Type:    packagesv1alpha1.PackageSetSucceeded,
+			Status:  metav1.ConditionTrue,
+			Reason:  "AvailableOnce",
+			Message: "Package was available once and passed all probes.",
+		})
+	}
+
 	meta.RemoveStatusCondition(&packageSet.Status.Conditions, packagesv1alpha1.PackageSetArchived)
 	meta.SetStatusCondition(&packageSet.Status.Conditions, metav1.Condition{
 		Type:               packagesv1alpha1.PackageSetAvailable,
@@ -203,7 +213,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.PackageSet,
 	phase *packagesv1alpha1.PackagePhase,
-	probes []internalprobe.NamedProbe,
+	probes []internalprobe.Interface,
 	log logr.Logger,
 ) (stop bool, err error) {
 	var failedProbes []string
@@ -219,11 +229,10 @@ func (r *PackageSetReconciler) reconcilePhase(
 		}
 
 		for _, probe := range probes {
-			if !probe.Probe(obj) {
-				failedProbes = append(failedProbes, probeFailure{
-					ProbeName: probe.GetName(),
-					Object:    obj,
-				}.String())
+			if success, message := probe.Probe(obj); !success {
+				gvk := obj.GroupVersionKind()
+				failedProbes = append(failedProbes,
+					fmt.Sprintf("%s %s %s/%s: %s", gvk.Group, gvk.Kind, obj.GetNamespace(), obj.GetName(), message))
 			}
 		}
 	}

@@ -136,47 +136,48 @@ spec:
                   description: Package probes define how packages are checked for
                     their status.
                   properties:
-                    name:
-                      description: Name of the probe.
-                      type: string
-                    probe:
+                    probes:
                       description: Probe configuration parameters.
-                      properties:
-                        condition:
-                          description: Condition specific configuration parameters.
-                            Only present if Type = Condition.
-                          properties:
-                            status:
-                              default: "True"
-                              description: Condition status to probe for.
-                              type: string
-                            type:
-                              description: Condition Type to probe for.
-                              type: string
-                          required:
-                          - status
-                          - type
-                          type: object
-                        fieldsEqual:
-                          description: Compares two fields specified by JSON Paths.
-                          properties:
-                            fieldA:
-                              type: string
-                            fieldB:
-                              type: string
-                          required:
-                          - fieldA
-                          - fieldB
-                          type: object
-                        type:
-                          description: Type of the probe.
-                          enum:
-                          - Condition
-                          - FieldsEqual
-                          type: string
-                      required:
-                      - type
-                      type: object
+                      items:
+                        description: Defines probe parameters to check parts of a
+                          package.
+                        properties:
+                          condition:
+                            description: Condition specific configuration parameters.
+                              Only present if Type = Condition.
+                            properties:
+                              status:
+                                default: "True"
+                                description: Condition status to probe for.
+                                type: string
+                              type:
+                                description: Condition Type to probe for.
+                                type: string
+                            required:
+                            - status
+                            - type
+                            type: object
+                          fieldsEqual:
+                            description: Compares two fields specified by JSON Paths.
+                            properties:
+                              fieldA:
+                                type: string
+                              fieldB:
+                                type: string
+                            required:
+                            - fieldA
+                            - fieldB
+                            type: object
+                          type:
+                            description: Type of the probe.
+                            enum:
+                            - Condition
+                            - FieldsEqual
+                            type: string
+                        required:
+                        - type
+                        type: object
+                      type: array
                     selector:
                       description: Selector specifies which objects this probe should
                         target.
@@ -204,8 +205,7 @@ spec:
                       - type
                       type: object
                   required:
-                  - name
-                  - probe
+                  - probes
                   - selector
                   type: object
                 type: array

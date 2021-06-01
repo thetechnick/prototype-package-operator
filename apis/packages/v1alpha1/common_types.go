@@ -33,10 +33,8 @@ type PackageObject struct {
 
 // Package probes define how packages are checked for their status.
 type PackageProbe struct {
-	// Name of the probe.
-	Name string `json:"name"`
 	// Probe configuration parameters.
-	Probe Probe `json:"probe"`
+	Probes []Probe `json:"probes"`
 	// Selector specifies which objects this probe should target.
 	Selector ProbeSelector `json:"selector"`
 }

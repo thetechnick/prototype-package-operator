@@ -8,6 +8,8 @@ spec:
       app: nginx
   template:
     metadata:
+      annotations:
+        description: This release is missing dependencies, so it will never install.
       labels:
         app: nginx
     spec:
@@ -21,15 +23,15 @@ spec:
               name: nginx-v2
             data:
               key1: test123
+              key2: test123
+              key3: test123
         - object:
             apiVersion: apps/v1
             kind: Deployment
             metadata:
-              name: nginx-deployment-v2
+              name: nginx-deployment-v4
               labels:
                 app: nginx
-              annotations:
-                packages.thetechnick.ninja/phase: deploy
             spec:
               replicas: 2
               selector:
@@ -46,36 +48,23 @@ spec:
                     ports:
                     - containerPort: 80
       readinessProbes:
-      - name: Available
-        selector:
+      - selector:
           type: Kind
           kind:
             group: apps
             kind: Deployment
-        probe:
-          type: Condition
+        probes:
+        - type: Condition
           condition:
             type: Available
             status: "True"
-      - name: Updated
-        selector:
-          type: Kind
-          kind:
-            group: apps
-            kind: Deployment
-        probe:
-          type: FieldsEqual
+        - type: FieldsEqual
           fieldsEqual:
             fieldA: .status.updatedReplicas
             fieldB: .status.replicas
-      - name: Synced
-        selector:
-          type: Kind
-          kind:
-            group: ""
-            kind: ConfigMap
-        probe:
-          type: FieldsEqual
-          fieldsEqual:
-            fieldA: .data.key1
-            fieldB: .metadata.annotations.test
+      dependencies:
+      - type: KubernetesAPI
+        kubernetesAPI:
+          group: superimportant.openshift.io
+          version: v1alpha1
+          kind: CoolDB
