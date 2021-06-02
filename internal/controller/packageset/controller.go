@@ -24,6 +24,7 @@ import (
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 	internalprobe "github.com/thetechnick/package-operator/internal/controller/packageset/probe"
+	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
 )
 
 type PackageSetReconciler struct {
@@ -33,11 +34,11 @@ type PackageSetReconciler struct {
 	Log             logr.Logger
 	Scheme          *runtime.Scheme
 
-	dw *dynamicWatcher
+	dw *dynamicwatcher.DynamicWatcher
 }
 
 func (r *PackageSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.dw = newDynamicWatcher(r.Log, r.Scheme, r.RESTMapper(), r.DynamicClient)
+	r.dw = dynamicwatcher.New(r.Log, r.Scheme, r.RESTMapper(), r.DynamicClient)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&packagesv1alpha1.PackageSet{}).

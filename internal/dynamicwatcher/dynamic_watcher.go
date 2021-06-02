@@ -1,4 +1,4 @@
-package packageset
+package dynamicwatcher
 
 import (
 	"context"
@@ -28,9 +28,9 @@ type namespacedGKV struct {
 	Namespace string
 }
 
-var _ source.Source = (*dynamicWatcher)(nil)
+var _ source.Source = (*DynamicWatcher)(nil)
 
-type dynamicWatcher struct {
+type DynamicWatcher struct {
 	log        logr.Logger
 	scheme     *runtime.Scheme
 	restMapper meta.RESTMapper
@@ -46,13 +46,13 @@ type dynamicWatcher struct {
 	informerReferences map[namespacedGKV]map[types.UID]struct{}
 }
 
-func newDynamicWatcher(
+func New(
 	log logr.Logger,
 	scheme *runtime.Scheme,
 	restMapper meta.RESTMapper,
 	client dynamic.Interface,
-) *dynamicWatcher {
-	return &dynamicWatcher{
+) *DynamicWatcher {
+	return &DynamicWatcher{
 		log:        log,
 		scheme:     scheme,
 		restMapper: restMapper,
@@ -64,7 +64,7 @@ func newDynamicWatcher(
 }
 
 // Starts this event source.
-func (dw *dynamicWatcher) Start(ctx context.Context, handler handler.EventHandler, queue workqueue.RateLimitingInterface, predicates ...predicate.Predicate) error {
+func (dw *DynamicWatcher) Start(ctx context.Context, handler handler.EventHandler, queue workqueue.RateLimitingInterface, predicates ...predicate.Predicate) error {
 	dw.ctx = ctx
 	dw.handler = handler
 	dw.queue = queue
@@ -73,7 +73,7 @@ func (dw *dynamicWatcher) Start(ctx context.Context, handler handler.EventHandle
 }
 
 // Watch the given object type and associate the watch with the given owner.
-func (dw *dynamicWatcher) Watch(owner client.Object, obj runtime.Object) error {
+func (dw *DynamicWatcher) Watch(owner client.Object, obj runtime.Object) error {
 	dw.mu.Lock()
 	defer dw.mu.Unlock()
 
@@ -133,7 +133,7 @@ func (dw *dynamicWatcher) Watch(owner client.Object, obj runtime.Object) error {
 }
 
 // Free all watches associated with the given owner.
-func (dw *dynamicWatcher) Free(owner client.Object) error {
+func (dw *DynamicWatcher) Free(owner client.Object) error {
 	dw.mu.Lock()
 	defer dw.mu.Unlock()
 
