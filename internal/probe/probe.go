@@ -12,10 +12,27 @@ type Interface interface {
 	Probe(obj *unstructured.Unstructured) (success bool, message string)
 }
 
+type ProbeList []Interface
+
+func (p ProbeList) Probe(obj *unstructured.Unstructured) (success bool, message string) {
+	var messages []string
+	for _, probe := range p {
+		if success, message := probe.Probe(obj); !success {
+			messages = append(messages, message)
+		}
+	}
+	if len(messages) > 0 {
+		return false, strings.Join(messages, ", ")
+	}
+	return true, ""
+}
+
 // Checks if the objects condition is set and in a certain status.
 type ConditionProbe struct {
 	Type, Status string
 }
+
+var _ Interface = (*ConditionProbe)(nil)
 
 func (cp *ConditionProbe) Probe(obj *unstructured.Unstructured) (success bool, message string) {
 	defer func() {
@@ -65,6 +82,8 @@ type FieldsEqualProbe struct {
 	FieldA, FieldB string
 }
 
+var _ Interface = (*FieldsEqualProbe)(nil)
+
 func (fe *FieldsEqualProbe) Probe(obj *unstructured.Unstructured) (success bool, message string) {
 	fieldAPath := strings.Split(strings.Trim(fe.FieldA, "."), ".")
 	fieldBPath := strings.Split(strings.Trim(fe.FieldB, "."), ".")
@@ -94,6 +113,8 @@ func (fe *FieldsEqualProbe) Probe(obj *unstructured.Unstructured) (success bool,
 type CurrentGenerationProbe struct {
 	Interface
 }
+
+var _ Interface = (*CurrentGenerationProbe)(nil)
 
 func (cg *CurrentGenerationProbe) Probe(obj *unstructured.Unstructured) (success bool, message string) {
 	if observedGeneration, ok, err := unstructured.NestedInt64(

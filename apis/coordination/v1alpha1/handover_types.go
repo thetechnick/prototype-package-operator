@@ -2,12 +2,16 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 )
 
 // HandoverSpec defines the desired state of a Handover.
 type HandoverSpec struct {
-	Strategy HandoverStrategy `json:"strategy"`
-	Target   HandoverTarget   `json:"target"`
+	Strategy HandoverStrategy         `json:"strategy"`
+	Target   HandoverTarget           `json:"target"`
+	Probes   []packagesv1alpha1.Probe `json:"probes"`
 }
 
 type HandoverStrategy struct {
@@ -35,13 +39,8 @@ type HandoverTarget struct {
 
 // HandoverStatus defines the observed state of a Handover
 type HandoverStatus struct {
-	// +optional
-	Found int32 `json:"found"`
-	// +optional
-	Available int32 `json:"available"`
-	// +optional
-	Updated int32 `json:"updated"`
-
+	Processing []HandoverRef       `json:"processing,omitempty"`
+	Stats      HandoverStatusStats `json:"stats,omitempty"`
 	// The most recent generation observed by the controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions is a list of status conditions ths object is in.
@@ -52,13 +51,22 @@ type HandoverStatus struct {
 	Phase HandoverPhase `json:"phase,omitempty"`
 }
 
+type HandoverStatusStats struct {
+	// +optional
+	Found int32 `json:"found"`
+	// +optional
+	Available int32 `json:"available"`
+	// +optional
+	Updated int32 `json:"updated"`
+}
+
+type HandoverRef struct {
+	UID  types.UID `json:"uid"`
+	Name string    `json:"name"`
+}
+
 const (
-	HandoverAvailable = "Available"
-	HandoverPaused    = "Paused"
-	HandoverArchived  = "Archived"
-	// Succeeded condition is only set once,
-	// after a Handover became Available for the first time.
-	HandoverSucceeded = "Succeeded"
+	HandoverCompleted = "Completed"
 )
 
 type HandoverPhase string
@@ -66,11 +74,8 @@ type HandoverPhase string
 // Well-known Handover Phases for printing a Status in kubectl,
 // see deprecation notice in HandoverStatus for details.
 const (
-	HandoverPhasePending           HandoverPhase = "Pending"
-	HandoverPhaseAvailable         HandoverPhase = "Available"
-	HandoverPhaseNotReady          HandoverPhase = "NotReady"
-	HandoverPhaseMissingDependency HandoverPhase = "MissingDependency"
-	HandoverPhaseArchived          HandoverPhase = "Archived"
+	HandoverPhasePending   HandoverPhase = "Pending"
+	HandoverPhaseCompleted HandoverPhase = "Completed"
 )
 
 // Handover controls the handover process between two operators.

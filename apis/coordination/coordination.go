@@ -1,15 +1,14 @@
-package apis
+package coordination
 
 import (
-	"github.com/thetechnick/package-operator/apis/coordination"
-	"github.com/thetechnick/package-operator/apis/packages"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
 )
 
 // AddToSchemes may be used to add all resources defined in the project to a Scheme
 var AddToSchemes runtime.SchemeBuilder = runtime.SchemeBuilder{
-	coordination.AddToScheme,
-	packages.AddToScheme,
+	v1alpha1.SchemeBuilder.AddToScheme,
 }
 
 // AddToScheme adds all addon Resources to the Scheme

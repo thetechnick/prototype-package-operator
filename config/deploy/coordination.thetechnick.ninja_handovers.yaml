@@ -43,6 +43,46 @@ spec:
           spec:
             description: HandoverSpec defines the desired state of a Handover.
             properties:
+              probes:
+                items:
+                  description: Defines probe parameters to check parts of a package.
+                  properties:
+                    condition:
+                      description: Condition specific configuration parameters. Only
+                        present if Type = Condition.
+                      properties:
+                        status:
+                          default: "True"
+                          description: Condition status to probe for.
+                          type: string
+                        type:
+                          description: Condition Type to probe for.
+                          type: string
+                      required:
+                      - status
+                      - type
+                      type: object
+                    fieldsEqual:
+                      description: Compares two fields specified by JSON Paths.
+                      properties:
+                        fieldA:
+                          type: string
+                        fieldB:
+                          type: string
+                      required:
+                      - fieldA
+                      - fieldB
+                      type: object
+                    type:
+                      description: Type of the probe.
+                      enum:
+                      - Condition
+                      - FieldsEqual
+                      type: string
+                  required:
+                  - type
+                  type: object
+                type: array
               strategy:
                 properties:
                   relabel:
@@ -69,11 +109,15 @@ spec:
                     type: string
                   kind:
                     type: string
+                  version:
+                    type: string
                 required:
                 - group
                 - kind
+                - version
                 type: object
             required:
+            - probes
             - strategy
             - target
             type: object
@@ -162,6 +206,34 @@ spec:
                   it will go away as soon as kubectl can print conditions! Human readable
                   status - please use .Conditions from code'
                 type: string
+              processing:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    uid:
+                      description: UID is a type that holds unique ID values, including
+                        UUIDs.  Because we don't ONLY use UUIDs, this is an alias
+                        to string.  Being a type captures intent and helps make sure
+                        that UIDs and names do not get conflated.
+                      type: string
+                  required:
+                  - name
+                  - uid
+                  type: object
+                type: array
+              stats:
+                properties:
+                  available:
+                    format: int32
+                    type: integer
+                  found:
+                    format: int32
+                    type: integer
+                  updated:
+                    format: int32
+                    type: integer
+                type: object
             type: object
         type: object
     served: true

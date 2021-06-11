@@ -5,11 +5,14 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -19,6 +22,7 @@ import (
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
 	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
+	internalprobe "github.com/thetechnick/package-operator/internal/probe"
 )
 
 type HandoverReconciler struct {
@@ -47,8 +51,14 @@ func (r *HandoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+const (
+	maxParrallel = 1
+)
+
 func (r *HandoverReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("Handover", req.NamespacedName.String())
+
 	handover := &coordinationv1alpha1.Handover{}
 	if err := r.Get(ctx, req.NamespacedName, handover); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -83,8 +93,15 @@ func (r *HandoverReconciler) Reconcile(
 		return ctrl.Result{}, fmt.Errorf("watching %s: %w", gvk, err)
 	}
 
-	// List all objects
+	// Parse Probes
+	probe := internalprobe.Parse(handover.Spec.Probes)
 
+	// Handle processing objects
+	if err := r.handleProcessing(ctx, log, handover, objType, probe); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// List all objects
 	// select all objects with new or old label value
 	requirement, err := labels.NewRequirement(
 		handover.Spec.Strategy.Relabel.Label,
@@ -112,6 +129,14 @@ func (r *HandoverReconciler) Reconcile(
 		return ctrl.Result{}, fmt.Errorf("listing %s: %w", gvk, err)
 	}
 
+	// Check state
+	var unavailable int
+	for _, obj := range objList.Items {
+		if success, _ := probe.Probe(&obj); !success {
+			unavailable++
+		}
+	}
+
 	// split into old and new
 	groups := groupByLabelValues(
 		objList.Items, handover.Spec.Strategy.Relabel.Label,
@@ -121,16 +146,86 @@ func (r *HandoverReconciler) Reconcile(
 	newObjs := groups[0]
 	oldObjs := groups[1]
 
-	// report counts
-	handover.Status.Found = int32(len(objList.Items))
-	handover.Status.Updated = int32(len(newObjs))
-	handover.Status.Available = int32(countAvailable(objList.Items))
+	if unavailable > 0 {
+		// Don't process anymore when something is unavailable.
+		for _, obj := range oldObjs {
+			if len(handover.Status.Processing) < maxParrallel {
+				break
+			}
 
+			handover.Status.Processing = append(
+				handover.Status.Processing,
+				coordinationv1alpha1.HandoverRef{
+					UID:  obj.GetUID(),
+					Name: obj.GetName(),
+				})
+		}
+	}
+
+	// report counts
+	handover.Status.Stats.Found = int32(len(objList.Items))
+	handover.Status.Stats.Updated = int32(len(newObjs))
+	handover.Status.Stats.Available = handover.Status.Stats.Found - int32(unavailable)
+
+	if handover.Status.Stats.Found == handover.Status.Stats.Updated {
+		meta.SetStatusCondition(&handover.Status.Conditions, metav1.Condition{
+			Type:               coordinationv1alpha1.HandoverCompleted,
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: handover.Generation,
+			Reason:             "Complete",
+			Message:            "All found objects have been re-labeled.",
+		})
+	} else {
+		meta.SetStatusCondition(&handover.Status.Conditions, metav1.Condition{
+			Type:               coordinationv1alpha1.HandoverCompleted,
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: handover.Generation,
+			Reason:             "Incomplete",
+			Message:            "Some found objects need to be re-labeled.",
+		})
+	}
+
+	if err := r.Status().Update(ctx, handover); err != nil {
+		return ctrl.Result{}, fmt.Errorf("updating Handover status: %w", err)
+	}
 	return ctrl.Result{}, nil
 }
 
-func countAvailable(in []unstructured.Unstructured) int {
-	return len(in)
+func (r *HandoverReconciler) handleProcessing(
+	ctx context.Context,
+	log logr.Logger,
+	handover *coordinationv1alpha1.Handover,
+	objType *unstructured.Unstructured,
+	probe internalprobe.Interface,
+) error {
+	var stillProcessing []coordinationv1alpha1.HandoverRef
+	for _, processing := range handover.Status.Processing {
+		processingObj := objType.DeepCopy()
+		err := r.Client.Get(ctx, types.NamespacedName{
+			Name:      processing.Name,
+			Namespace: handover.Namespace,
+		}, processingObj)
+		if err != nil {
+			return fmt.Errorf("getting object in process queue: %w", err)
+		}
+
+		labels := processingObj.GetLabels()
+		if labels == nil ||
+			labels[handover.Spec.Strategy.Relabel.Label] != handover.Spec.Strategy.Relabel.NewValue {
+			labels[handover.Spec.Strategy.Relabel.Label] = handover.Spec.Strategy.Relabel.NewValue
+			processingObj.SetLabels(labels)
+			if err := r.Update(ctx, processingObj); err != nil {
+				return fmt.Errorf("updating object in process queue: %w", err)
+			}
+		}
+
+		if success, message := probe.Probe(processingObj); !success {
+			log.Info("waiting to be ready", "objName", processing.Name, "failure", message)
+			stillProcessing = append(stillProcessing, processing)
+		}
+	}
+	handover.Status.Processing = stillProcessing
+	return nil
 }
 
 func groupByLabelValues(in []unstructured.Unstructured, labelKey string, values ...string) [][]unstructured.Unstructured {

@@ -23,8 +23,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
-	internalprobe "github.com/thetechnick/package-operator/internal/controller/packageset/probe"
 	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
+	internalprobe "github.com/thetechnick/package-operator/internal/probe"
 )
 
 type PackageSetReconciler struct {
@@ -93,9 +93,9 @@ func (r *PackageSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Probes
-	probes := parseProbes(packageSet.Spec.ReadinessProbes)
+	probe := parseProbes(packageSet.Spec.ReadinessProbes)
 	for _, phase := range packageSet.Spec.Phases {
-		stop, err := r.reconcilePhase(ctx, packageSet, &phase, probes, log)
+		stop, err := r.reconcilePhase(ctx, packageSet, &phase, probe, log)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -214,7 +214,7 @@ func (r *PackageSetReconciler) reconcilePhase(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.PackageSet,
 	phase *packagesv1alpha1.PackagePhase,
-	probes []internalprobe.Interface,
+	probe internalprobe.Interface,
 	log logr.Logger,
 ) (stop bool, err error) {
 	var failedProbes []string
@@ -229,12 +229,10 @@ func (r *PackageSetReconciler) reconcilePhase(
 			return false, err
 		}
 
-		for _, probe := range probes {
-			if success, message := probe.Probe(obj); !success {
-				gvk := obj.GroupVersionKind()
-				failedProbes = append(failedProbes,
-					fmt.Sprintf("%s %s %s/%s: %s", gvk.Group, gvk.Kind, obj.GetNamespace(), obj.GetName(), message))
-			}
+		if success, message := probe.Probe(obj); !success {
+			gvk := obj.GroupVersionKind()
+			failedProbes = append(failedProbes,
+				fmt.Sprintf("%s %s %s/%s: %s", gvk.Group, gvk.Kind, obj.GetNamespace(), obj.GetName(), message))
 		}
 	}
 
