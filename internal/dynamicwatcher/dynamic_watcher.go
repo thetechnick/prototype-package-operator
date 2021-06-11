@@ -18,13 +18,23 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 type namespacedGKV struct {
 	schema.GroupVersionKind
+	Namespace string
+}
+
+type OwnerRef struct {
+	UID       types.UID
+	Group     string
+	Kind      string
+	Name      string
 	Namespace string
 }
 
@@ -43,7 +53,7 @@ type DynamicWatcher struct {
 
 	mu                 sync.Mutex
 	informers          map[namespacedGKV]chan<- struct{}
-	informerReferences map[namespacedGKV]map[types.UID]struct{}
+	informerReferences map[namespacedGKV]map[OwnerRef]struct{}
 }
 
 func New(
@@ -59,8 +69,18 @@ func New(
 		client:     client,
 
 		informers:          map[namespacedGKV]chan<- struct{}{},
-		informerReferences: map[namespacedGKV]map[types.UID]struct{}{},
+		informerReferences: map[namespacedGKV]map[OwnerRef]struct{}{},
 	}
+}
+
+func (dw *DynamicWatcher) OwnersForNamespacedGKV(ngvk namespacedGKV) []OwnerRef {
+	dw.mu.Lock()
+	defer dw.mu.Unlock()
+	var ownerRefs []OwnerRef
+	for ownerRef := range dw.informerReferences[ngvk] {
+		ownerRefs = append(ownerRefs, ownerRef)
+	}
+	return ownerRefs
 }
 
 // Starts this event source.
@@ -87,10 +107,14 @@ func (dw *DynamicWatcher) Watch(owner client.Object, obj runtime.Object) error {
 	}
 
 	// Check if informer is already registered.
-	if _, ok := dw.informers[ngvk]; !ok {
-		dw.informerReferences[ngvk] = map[types.UID]struct{}{}
+	ownerRef, err := dw.ownerRef(owner)
+	if err != nil {
+		return err
 	}
-	dw.informerReferences[ngvk][owner.GetUID()] = struct{}{}
+	if _, ok := dw.informers[ngvk]; !ok {
+		dw.informerReferences[ngvk] = map[OwnerRef]struct{}{}
+	}
+	dw.informerReferences[ngvk][ownerRef] = struct{}{}
 	if _, ok := dw.informers[ngvk]; ok {
 		dw.log.Info("reusing existing watcher",
 			"kind", gvk.Kind, "group", gvk.Group, "namespace", owner.GetNamespace())
@@ -137,11 +161,14 @@ func (dw *DynamicWatcher) Free(owner client.Object) error {
 	dw.mu.Lock()
 	defer dw.mu.Unlock()
 
-	uid := owner.GetUID()
+	ownerRef, err := dw.ownerRef(owner)
+	if err != nil {
+		return err
+	}
 
 	for gvk, refs := range dw.informerReferences {
-		if _, ok := refs[uid]; ok {
-			delete(refs, uid)
+		if _, ok := refs[ownerRef]; ok {
+			delete(refs, ownerRef)
 
 			if len(refs) == 0 {
 				close(dw.informers[gvk])
@@ -151,5 +178,104 @@ func (dw *DynamicWatcher) Free(owner client.Object) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (dw *DynamicWatcher) ownerRef(owner client.Object) (OwnerRef, error) {
+	ownerGVK, err := apiutil.GVKForObject(owner, dw.scheme)
+	if err != nil {
+		return OwnerRef{}, fmt.Errorf("get GVK for object: %w", err)
+	}
+
+	return OwnerRef{
+		UID:       owner.GetUID(),
+		Group:     ownerGVK.Group,
+		Kind:      ownerGVK.Kind,
+		Name:      owner.GetName(),
+		Namespace: owner.GetNamespace(),
+	}, nil
+}
+
+type ownerRefGetter interface {
+	OwnersForNamespacedGKV(ngvk namespacedGKV) []OwnerRef
+}
+
+type EnqueueWatchingObjects struct {
+	WatcherRefGetter ownerRefGetter
+	// WatcherType is the type of the Owner object to look for in OwnerReferences.  Only Group and Kind are compared.
+	WatcherType runtime.Object
+
+	scheme *runtime.Scheme
+	// groupKind is the cached Group and Kind from WatcherType
+	groupKind schema.GroupKind
+}
+
+func (e *EnqueueWatchingObjects) Create(evt event.CreateEvent, q workqueue.RateLimitingInterface) {
+	e.enqueueWatchers(evt.Object, q)
+}
+
+func (e *EnqueueWatchingObjects) Update(evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	e.enqueueWatchers(evt.ObjectNew, q)
+}
+
+func (e *EnqueueWatchingObjects) Delete(evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	e.enqueueWatchers(evt.Object, q)
+}
+
+func (e *EnqueueWatchingObjects) Generic(evt event.GenericEvent, q workqueue.RateLimitingInterface) {
+	e.enqueueWatchers(evt.Object, q)
+}
+
+// InjectScheme is called by the Controller to provide a singleton scheme to the EnqueueRequestForOwner.
+func (e *EnqueueWatchingObjects) InjectScheme(s *runtime.Scheme) error {
+	e.scheme = s
+	return e.parseWatcherTypeGroupKind(s)
+}
+
+func (e *EnqueueWatchingObjects) enqueueWatchers(obj client.Object, q workqueue.RateLimitingInterface) {
+	if obj == nil {
+		return
+	}
+
+	gvk, err := apiutil.GVKForObject(obj, e.scheme)
+	if err != nil {
+		// TODO: error reporting?
+		panic(err)
+	}
+
+	ownerRefs := e.WatcherRefGetter.OwnersForNamespacedGKV(namespacedGKV{
+		GroupVersionKind: gvk,
+		Namespace:        obj.GetNamespace(),
+	})
+	for _, ownerRef := range ownerRefs {
+		if ownerRef.Kind != e.groupKind.Kind ||
+			ownerRef.Group != e.groupKind.Group {
+			continue
+		}
+
+		q.Add(reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      ownerRef.Name,
+				Namespace: ownerRef.Namespace,
+			}})
+	}
+}
+
+// parseOwnerTypeGroupKind parses the WatcherType into a Group and Kind and caches the result.  Returns false
+// if the WatcherType could not be parsed using the scheme.
+func (e *EnqueueWatchingObjects) parseWatcherTypeGroupKind(scheme *runtime.Scheme) error {
+	// Get the kinds of the type
+	kinds, _, err := scheme.ObjectKinds(e.WatcherType)
+	if err != nil {
+		return err
+	}
+	// Expect only 1 kind.  If there is more than one kind this is probably an edge case such as ListOptions.
+	if len(kinds) != 1 {
+		err := fmt.Errorf("Expected exactly 1 kind for WatcherType %T, but found %s kinds", e.WatcherType, kinds)
+		return err
+
+	}
+	// Cache the Group and Kind for the WatcherType
+	e.groupKind = schema.GroupKind{Group: kinds[0].Group, Kind: kinds[0].Kind}
 	return nil
 }

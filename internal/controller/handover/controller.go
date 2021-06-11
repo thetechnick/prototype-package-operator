@@ -18,7 +18,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
 	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
@@ -44,9 +43,9 @@ func (r *HandoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&coordinationv1alpha1.Handover{}).
-		Watches(r.dw, &handler.EnqueueRequestForOwner{
-			OwnerType:    &coordinationv1alpha1.Handover{},
-			IsController: false,
+		Watches(r.dw, &dynamicwatcher.EnqueueWatchingObjects{
+			WatcherType:      &coordinationv1alpha1.Handover{},
+			WatcherRefGetter: r.dw,
 		}).
 		Complete(r)
 }
@@ -146,10 +145,10 @@ func (r *HandoverReconciler) Reconcile(
 	newObjs := groups[0]
 	oldObjs := groups[1]
 
-	if unavailable > 0 {
+	if unavailable == 0 {
 		// Don't process anymore when something is unavailable.
 		for _, obj := range oldObjs {
-			if len(handover.Status.Processing) < maxParrallel {
+			if len(handover.Status.Processing) >= maxParrallel {
 				break
 			}
 
@@ -167,7 +166,9 @@ func (r *HandoverReconciler) Reconcile(
 	handover.Status.Stats.Updated = int32(len(newObjs))
 	handover.Status.Stats.Available = handover.Status.Stats.Found - int32(unavailable)
 
+	handover.Status.ObservedGeneration = handover.Generation
 	if handover.Status.Stats.Found == handover.Status.Stats.Updated {
+		handover.Status.Phase = coordinationv1alpha1.HandoverPhaseCompleted
 		meta.SetStatusCondition(&handover.Status.Conditions, metav1.Condition{
 			Type:               coordinationv1alpha1.HandoverCompleted,
 			Status:             metav1.ConditionTrue,
@@ -176,6 +177,7 @@ func (r *HandoverReconciler) Reconcile(
 			Message:            "All found objects have been re-labeled.",
 		})
 	} else {
+		handover.Status.Phase = coordinationv1alpha1.HandoverPhaseProgressing
 		meta.SetStatusCondition(&handover.Status.Conditions, metav1.Condition{
 			Type:               coordinationv1alpha1.HandoverCompleted,
 			Status:             metav1.ConditionFalse,

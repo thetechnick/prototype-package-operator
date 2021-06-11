@@ -74,14 +74,18 @@ type HandoverPhase string
 // Well-known Handover Phases for printing a Status in kubectl,
 // see deprecation notice in HandoverStatus for details.
 const (
-	HandoverPhasePending   HandoverPhase = "Pending"
-	HandoverPhaseCompleted HandoverPhase = "Completed"
+	HandoverPhasePending     HandoverPhase = "Pending"
+	HandoverPhaseProgressing HandoverPhase = "Progressing"
+	HandoverPhaseCompleted   HandoverPhase = "Completed"
 )
 
 // Handover controls the handover process between two operators.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Found",type="integer",JSONPath=".status.stats.found"
+// +kubebuilder:printcolumn:name="Available",type="integer",JSONPath=".status.stats.available"
+// +kubebuilder:printcolumn:name="Updated",type="integer",JSONPath=".status.stats.updated"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type Handover struct {
 	metav1.TypeMeta   `json:",inline"`

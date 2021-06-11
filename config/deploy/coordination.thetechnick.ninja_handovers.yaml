@@ -20,6 +20,15 @@ spec:
     - jsonPath: .status.phase
       name: Status
       type: string
+    - jsonPath: .status.stats.found
+      name: Found
+      type: integer
+    - jsonPath: .status.stats.available
+      name: Available
+      type: integer
+    - jsonPath: .status.stats.updated
+      name: Updated
+      type: integer
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
