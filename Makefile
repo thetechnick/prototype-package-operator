@@ -126,6 +126,8 @@ $(GOIMPORTS):
 		&& touch "$(GOIMPORTS)" \
 		&& echo
 
+goimports: $(GOIMPORTS)
+
 # setup golangci-lint
 GOLANGCI_LINT:=$(DEPENDENCIES)/golangci-lint/$(GOLANGCI_LINT_VERSION)
 $(GOLANGCI_LINT):

@@ -237,6 +237,39 @@ func (r *ClusterPackageSetReconciler) handleDeletion(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.ClusterPackageSet,
 ) error {
+	var waitForDeletion int
+
+	// Ensure CRDs are deleted first, so finalizers can be cleaned up:
+	for _, phase := range packageSet.Spec.Phases {
+		for _, phaseObject := range phase.Objects {
+			obj, err := unstructuredFromPackageObject(&phaseObject)
+			if err != nil {
+				return err
+			}
+
+			gvk := obj.GetObjectKind().GroupVersionKind()
+			if gvk.Group != "apiextensions.k8s.io" ||
+				gvk.Kind != "CustomResourceDefinition" {
+				continue
+			}
+
+			if !isClusterPackageSetPaused(packageSet, obj) {
+				err := r.Delete(ctx, obj)
+				if err != nil && !errors.IsNotFound(err) {
+					return err
+				}
+				if err == nil {
+					// we only just deleted this object,
+					// better wait another reconcile round to make sure it's gone.
+					waitForDeletion++
+				}
+			}
+		}
+	}
+	if waitForDeletion > 0 {
+		return nil
+	}
+
 	if controllerutil.ContainsFinalizer(
 		packageSet, packageSetCacheFinalizer) {
 		controllerutil.RemoveFinalizer(
@@ -263,7 +296,6 @@ func (r *ClusterPackageSetReconciler) handleArchived(
 			if err != nil {
 				return err
 			}
-			obj.SetNamespace(packageSet.Namespace)
 
 			if !isClusterPackageSetPaused(packageSet, obj) {
 				if err := r.Delete(ctx, obj); err != nil && !errors.IsNotFound(err) {
