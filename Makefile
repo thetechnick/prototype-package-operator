@@ -154,11 +154,18 @@ dependencies: \
 # ----------
 
 # Run against the configured Kubernetes cluster in ~/.kube/config or $KUBECONFIG
-run: generate fmt vet manifests
+run-package-operator-manager: generate fmt vet manifests
 	go run -ldflags "-w $(LD_FLAGS)" \
 		./cmd/package-operator-manager/main.go \
-			-pprof-addr="127.0.0.1:8065"
-.PHONY: run
+			-metrics-addr="0"
+.PHONY: run-package-operator-manager
+
+# Run against the configured Kubernetes cluster in ~/.kube/config or $KUBECONFIG
+run-coordination-operator-manager: generate fmt vet manifests
+	go run -ldflags "-w $(LD_FLAGS)" \
+		./cmd/coordination-operator-manager/main.go \
+			-metrics-addr="0"
+.PHONY: run-coordination-operator-manager
 
 # ----------
 # Generators

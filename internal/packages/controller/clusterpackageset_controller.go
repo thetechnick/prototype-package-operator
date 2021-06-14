@@ -305,11 +305,8 @@ func (r *ClusterPackageSetReconciler) reconcileObject(
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	labels[packageSetLabel] = strings.Replace(client.ObjectKeyFromObject(packageSet).String(), "/", "-", -1)
+	labels[packageSetLabel] = strings.Trim(strings.Replace(client.ObjectKeyFromObject(packageSet).String(), "/", "-", -1), "-")
 	obj.SetLabels(labels)
-
-	// Force namespace to this one
-	obj.SetNamespace(packageSet.Namespace)
 
 	// Ensure we are owner
 	if err := controllerutil.SetControllerReference(packageSet, obj, r.Scheme); err != nil {

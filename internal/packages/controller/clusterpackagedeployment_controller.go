@@ -27,8 +27,8 @@ type ClusterPackageDeploymentReconciler struct {
 
 func (r *ClusterPackageDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&packagesv1alpha1.PackageDeployment{}).
-		Owns(&packagesv1alpha1.PackageSet{}).
+		For(&packagesv1alpha1.ClusterPackageDeployment{}).
+		Owns(&packagesv1alpha1.ClusterPackageSet{}).
 		Complete(r)
 }
 
@@ -36,7 +36,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("PackageDeployment", req.NamespacedName.String())
 
-	packageDeployment := &packagesv1alpha1.PackageDeployment{}
+	packageDeployment := &packagesv1alpha1.ClusterPackageDeployment{}
 	if err := r.Get(ctx, req.NamespacedName, packageDeployment); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -46,7 +46,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 		return ctrl.Result{}, fmt.Errorf("listing PackageSets by revision: %w", err)
 	}
 
-	latestRevision, err := latestRevision(packageSets)
+	latestRevision, err := latestRevisionCluster(packageSets)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("calculating latest revision: %w", err)
 	}
@@ -55,14 +55,14 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 		&packageDeployment.Spec.Template,
 		packageDeployment.Status.CollisionCount)
 
-	newPackageSet := &packagesv1alpha1.PackageSet{
+	newPackageSet := &packagesv1alpha1.ClusterPackageSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        packageDeployment.Name + "-" + templateHash,
 			Namespace:   packageDeployment.Namespace,
 			Annotations: packageDeployment.Annotations,
 			Labels:      packageDeployment.Spec.Template.Metadata.Labels,
 		},
-		Spec: packagesv1alpha1.PackageSetSpec{
+		Spec: packagesv1alpha1.ClusterPackageSetSpec{
 			PackageSetTemplateSpec: packageDeployment.Spec.Template.Spec,
 		},
 	}
@@ -79,12 +79,12 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 
 	// What's the current PackageSet revision to check, or do we have to create it?
 	var (
-		currentPackageSet   *packagesv1alpha1.PackageSet
-		outdatedPackageSets []packagesv1alpha1.PackageSet
+		currentPackageSet   *packagesv1alpha1.ClusterPackageSet
+		outdatedPackageSets []packagesv1alpha1.ClusterPackageSet
 	)
 	for i := range packageSets {
 		if equality.Semantic.DeepEqual(newPackageSet.Spec.PackageSetTemplateSpec, packageSets[i].Spec.PackageSetTemplateSpec) &&
-			!meta.IsStatusConditionTrue(packageSets[i].Status.Conditions, packagesv1alpha1.PackageSetArchived) {
+			!meta.IsStatusConditionTrue(packageSets[i].Status.Conditions, packagesv1alpha1.ClusterPackageSetArchived) {
 			currentPackageSet = packageSets[i].DeepCopy()
 			continue
 		}
@@ -92,7 +92,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 	}
 
 	// Ensure Objects that are a part of the current PackageSet are not reconciled by other PackageSets.
-	pausedObjects, err := pausedObjectsFromPackageSet(newPackageSet)
+	pausedObjects, err := pausedObjectsFromClusterPackageSet(newPackageSet)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("getting paused objects from PackageSet: %w", err)
 	}
@@ -101,7 +101,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 	for _, outdatedPackageSet := range outdatedPackageSets {
 		if meta.IsStatusConditionTrue(
 			outdatedPackageSet.Status.Conditions,
-			packagesv1alpha1.PackageSetArchived,
+			packagesv1alpha1.ClusterPackageSetArchived,
 		) {
 			// This PackageSet is archived and should stay that way.
 			continue
@@ -126,7 +126,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 
 	// Create new PackageSet to progress to the next version.
 	if currentPackageSet == nil {
-		packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentProgressing
+		packageDeployment.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentProgressing
 		packageDeployment.Status.ObservedGeneration = packageDeployment.Generation
 		if err := r.Status().Update(ctx, packageDeployment); err != nil {
 			return ctrl.Result{}, err
@@ -134,7 +134,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 
 		err := r.Create(ctx, newPackageSet)
 		if errors.IsAlreadyExists(err) {
-			conflictingPackageSet := &packagesv1alpha1.PackageSet{}
+			conflictingPackageSet := &packagesv1alpha1.ClusterPackageSet{}
 			if err := r.Get(ctx, client.ObjectKeyFromObject(newPackageSet), conflictingPackageSet); err != nil {
 				return ctrl.Result{}, fmt.Errorf("getting conflicting PackageSet: %w", err)
 			}
@@ -145,7 +145,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 			}
 			if isOwner &&
 				equality.Semantic.DeepEqual(newPackageSet.Spec.PackageSetTemplateSpec, conflictingPackageSet.Spec.PackageSetTemplateSpec) &&
-				!meta.IsStatusConditionTrue(conflictingPackageSet.Status.Conditions, packagesv1alpha1.PackageSetArchived) {
+				!meta.IsStatusConditionTrue(conflictingPackageSet.Status.Conditions, packagesv1alpha1.ClusterPackageSetArchived) {
 				// Hey! This looks like what we wanted to create anyway.
 				// Looks like a slow cache.
 				currentPackageSet = conflictingPackageSet
@@ -165,9 +165,9 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 	}
 
 	var packageDeploymentAvailable bool
-	var packageSetsForCleanup []packagesv1alpha1.PackageSet
+	var packageSetsForCleanup []packagesv1alpha1.ClusterPackageSet
 	if meta.IsStatusConditionTrue(
-		currentPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
+		currentPackageSet.Status.Conditions, packagesv1alpha1.ClusterPackageSetAvailable) &&
 		currentPackageSet.Generation == currentPackageSet.Status.ObservedGeneration {
 
 		// all old PackageSets are ready for cleanup,
@@ -178,18 +178,18 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 
 		// We are also no longer progressing, because the latest version is available
 		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
-			Type:               packagesv1alpha1.PackageDeploymentProgressing,
+			Type:               packagesv1alpha1.ClusterPackageDeploymentProgressing,
 			Status:             metav1.ConditionFalse,
 			Reason:             "Idle",
 			Message:            "Update concluded.",
 			ObservedGeneration: packageDeployment.Generation,
 		})
-		packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentAvailable
+		packageDeployment.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentAvailable
 	} else {
 		// The latest PackageSet is not Available, but that's Ok, if an earlier one is still up and running.
 		for _, outdatedPackageSet := range outdatedPackageSets {
 			if meta.IsStatusConditionTrue(
-				outdatedPackageSet.Status.Conditions, packagesv1alpha1.PackageSetAvailable) &&
+				outdatedPackageSet.Status.Conditions, packagesv1alpha1.ClusterPackageSetAvailable) &&
 				outdatedPackageSet.Generation == outdatedPackageSet.Status.ObservedGeneration {
 				// Alright! \o/
 				packageDeploymentAvailable = true
@@ -202,13 +202,13 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 
 		// This also means that we are progressing to a new PackageSet, so better report that
 		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
-			Type:               packagesv1alpha1.PackageDeploymentProgressing,
+			Type:               packagesv1alpha1.ClusterPackageDeploymentProgressing,
 			Status:             metav1.ConditionTrue,
 			Reason:             "Progressing",
 			Message:            "Progressing to a new PackageSet.",
 			ObservedGeneration: packageDeployment.Generation,
 		})
-		packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentPhaseProgressing
+		packageDeployment.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentPhaseProgressing
 	}
 
 	if packageDeploymentAvailable {
@@ -236,7 +236,7 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 		}
 
 		meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
-			Type:               packagesv1alpha1.PackageDeploymentAvailable,
+			Type:               packagesv1alpha1.ClusterPackageDeploymentAvailable,
 			Status:             metav1.ConditionTrue,
 			Reason:             "Available",
 			Message:            "At least one revision PackageSet is Available.",
@@ -250,18 +250,18 @@ func (r *ClusterPackageDeploymentReconciler) Reconcile(
 	}
 
 	meta.SetStatusCondition(&packageDeployment.Status.Conditions, metav1.Condition{
-		Type:               packagesv1alpha1.PackageSetAvailable,
+		Type:               packagesv1alpha1.ClusterPackageSetAvailable,
 		Status:             metav1.ConditionFalse,
 		Reason:             "PackageSetUnready",
 		Message:            "Latest PackageSet is not available.",
 		ObservedGeneration: packageDeployment.Generation,
 	})
-	packageDeployment.Status.Phase = packagesv1alpha1.PackageDeploymentPhaseNotReady
+	packageDeployment.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentPhaseNotReady
 	packageDeployment.Status.ObservedGeneration = packageDeployment.Generation
 	return ctrl.Result{}, r.Status().Update(ctx, packageDeployment)
 }
 
-type clusterPackageSetsByRevision []packagesv1alpha1.PackageSet
+type clusterPackageSetsByRevision []packagesv1alpha1.ClusterPackageSet
 
 func (a clusterPackageSetsByRevision) Len() int      { return len(a) }
 func (a clusterPackageSetsByRevision) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
@@ -281,15 +281,15 @@ func (a clusterPackageSetsByRevision) Less(i, j int) bool {
 
 func (r *ClusterPackageDeploymentReconciler) listPackageSetsByRevision(
 	ctx context.Context,
-	packageDeployment *packagesv1alpha1.PackageDeployment,
-) ([]packagesv1alpha1.PackageSet, error) {
+	packageDeployment *packagesv1alpha1.ClusterPackageDeployment,
+) ([]packagesv1alpha1.ClusterPackageSet, error) {
 	packageSetSelector, err := metav1.LabelSelectorAsSelector(
 		&packageDeployment.Spec.Selector)
 	if err != nil {
 		return nil, fmt.Errorf("invalid selector: %w", err)
 	}
 
-	packageSetList := &packagesv1alpha1.PackageSetList{}
+	packageSetList := &packagesv1alpha1.ClusterPackageSetList{}
 	if err := r.List(
 		ctx, packageSetList,
 		client.MatchingLabelsSelector{
