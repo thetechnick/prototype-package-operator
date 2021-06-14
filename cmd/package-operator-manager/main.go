@@ -16,8 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	packageapis "github.com/thetechnick/package-operator/apis"
-	packagedeploymentcontroller "github.com/thetechnick/package-operator/internal/controller/packagedeployment"
-	packagesetcontroller "github.com/thetechnick/package-operator/internal/controller/packageset"
+	"github.com/thetechnick/package-operator/internal/packages/controller"
 )
 
 var (
@@ -51,7 +50,7 @@ func main() {
 		Port:                       9443,
 		LeaderElectionResourceLock: "leases",
 		LeaderElection:             enableLeaderElection,
-		LeaderElectionID:           "8a4hp84a6s.addon-operator-lock",
+		LeaderElectionID:           "8a4hp84a6s.package-operator-lock",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -108,7 +107,7 @@ func main() {
 		}
 	}
 
-	if err = (&packagesetcontroller.PackageSetReconciler{
+	if err = (&controller.PackageSetReconciler{
 		Client:          mgr.GetClient(),
 		DynamicClient:   dynamicClient,
 		DiscoveryClient: discoveryClient,
@@ -119,12 +118,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&packagedeploymentcontroller.PackageDeploymentReconciler{
+	if err = (&controller.PackageDeploymentReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("PackageDeployment"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PackageDeployment")
+		os.Exit(1)
+	}
+
+	if err = (&controller.ClusterPackageSetReconciler{
+		Client:          mgr.GetClient(),
+		DynamicClient:   dynamicClient,
+		DiscoveryClient: discoveryClient,
+		Log:             ctrl.Log.WithName("controllers").WithName("ClusterPackageSet"),
+		Scheme:          mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterPackageSet")
+		os.Exit(1)
+	}
+
+	if err = (&controller.ClusterPackageDeploymentReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("ClusterPackageDeployment"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterPackageDeployment")
 		os.Exit(1)
 	}
 

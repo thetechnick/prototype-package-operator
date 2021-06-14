@@ -18,13 +18,6 @@ type PackageSetSpec struct {
 	PackageSetTemplateSpec `json:",inline"`
 }
 
-type PackageDependencyCRD struct {
-	// Name of the Custom Resource Definition to probe for.
-	Name string `json:"name"`
-	// API Version the CRD must
-	Version string `json:"version"`
-}
-
 // Specifies that the reconcilation of a specific object should be paused.
 type PackagePausedObject struct {
 	// Object Kind.

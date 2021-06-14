@@ -12,7 +12,7 @@ type HandoverSpec struct {
 	// Strategy to use when handing over objects between operators.
 	Strategy HandoverStrategy `json:"strategy"`
 	// TargetAPI to use for handover.
-	TargetAPI HandoverTargetAPI `json:"targetAPI"`
+	TargetAPI TargetAPI `json:"targetAPI"`
 	// Probes to check selected objects for availability.
 	Probes []packagesv1alpha1.Probe `json:"probes"`
 }
@@ -55,13 +55,6 @@ type HandoverStrategyRelabelSpec struct {
 	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum=1
 	MaxUnavailable int `json:"maxUnavailable"`
-}
-
-//
-type HandoverTargetAPI struct {
-	Group   string `json:"group"`
-	Version string `json:"version"`
-	Kind    string `json:"kind"`
 }
 
 // HandoverStatus defines the observed state of a Handover

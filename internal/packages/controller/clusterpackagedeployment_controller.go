@@ -1,51 +1,38 @@
-package packagedeployment
+package controller
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"hash"
-	"hash/fnv"
 	"sort"
 	"strconv"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/rand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/yaml"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 )
 
-type PackageDeploymentReconciler struct {
+type ClusterPackageDeploymentReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
 
-func (r *PackageDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterPackageDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&packagesv1alpha1.PackageDeployment{}).
 		Owns(&packagesv1alpha1.PackageSet{}).
 		Complete(r)
 }
 
-const (
-	packageSetHashAnnotation     = "packages.thetechnick.ninja/hash"
-	packageSetRevisionAnnotation = "packages.thetechnick.ninja/revision"
-)
-
-func (r *PackageDeploymentReconciler) Reconcile(
+func (r *ClusterPackageDeploymentReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("PackageDeployment", req.NamespacedName.String())
 
@@ -274,27 +261,11 @@ func (r *PackageDeploymentReconciler) Reconcile(
 	return ctrl.Result{}, r.Status().Update(ctx, packageDeployment)
 }
 
-func isOwnerOf(owner, obj client.Object, scheme *runtime.Scheme) (bool, error) {
-	ownerGVK, err := apiutil.GVKForObject(owner, scheme)
-	if err != nil {
-		return false, err
-	}
-	for _, ownerRef := range obj.GetOwnerReferences() {
-		if ownerRef.Kind == ownerGVK.Kind &&
-			ownerRef.APIVersion == ownerGVK.Group &&
-			ownerRef.Controller != nil &&
-			*ownerRef.Controller {
-			return true, nil
-		}
-	}
-	return false, nil
-}
+type clusterPackageSetsByRevision []packagesv1alpha1.PackageSet
 
-type packageSetsByRevision []packagesv1alpha1.PackageSet
-
-func (a packageSetsByRevision) Len() int      { return len(a) }
-func (a packageSetsByRevision) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a packageSetsByRevision) Less(i, j int) bool {
+func (a clusterPackageSetsByRevision) Len() int      { return len(a) }
+func (a clusterPackageSetsByRevision) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a clusterPackageSetsByRevision) Less(i, j int) bool {
 	if a[i].Annotations == nil ||
 		len(a[i].Annotations[packageSetRevisionAnnotation]) == 0 ||
 		a[j].Annotations == nil ||
@@ -308,7 +279,7 @@ func (a packageSetsByRevision) Less(i, j int) bool {
 	return psIRevision < psJRevision
 }
 
-func (r *PackageDeploymentReconciler) listPackageSetsByRevision(
+func (r *ClusterPackageDeploymentReconciler) listPackageSetsByRevision(
 	ctx context.Context,
 	packageDeployment *packagesv1alpha1.PackageDeployment,
 ) ([]packagesv1alpha1.PackageSet, error) {
@@ -329,69 +300,6 @@ func (r *PackageDeploymentReconciler) listPackageSetsByRevision(
 		return nil, fmt.Errorf("listing PackageSets: %w", err)
 	}
 
-	sort.Sort(packageSetsByRevision(packageSetList.Items))
+	sort.Sort(clusterPackageSetsByRevision(packageSetList.Items))
 	return packageSetList.Items, nil
-}
-
-// returns the latest revision among the given PackageSets.
-// expects the input packageSet list to be already sorted by revision.
-func latestRevision(packageSets []packagesv1alpha1.PackageSet) (int, error) {
-	if len(packageSets) == 0 {
-		return 0, nil
-	}
-	latestPackageSet := packageSets[len(packageSets)-1]
-	if len(latestPackageSet.Annotations[packageSetRevisionAnnotation]) == 0 {
-		return 0, nil
-	}
-	return strconv.Atoi(latestPackageSet.Annotations[packageSetRevisionAnnotation])
-}
-
-func pausedObjectsFromPackageSet(packageSet *packagesv1alpha1.PackageSet) ([]packagesv1alpha1.PackagePausedObject, error) {
-	var pausedObject []packagesv1alpha1.PackagePausedObject
-	for _, phase := range packageSet.Spec.Phases {
-		for _, phaseObject := range phase.Objects {
-			obj := &unstructured.Unstructured{}
-			if err := yaml.Unmarshal(phaseObject.Object.Raw, obj); err != nil {
-				return nil, fmt.Errorf("converting RawExtension into unstructured: %w", err)
-			}
-			pausedObject = append(pausedObject, packagesv1alpha1.PackagePausedObject{
-				Group: obj.GroupVersionKind().Group,
-				Kind:  obj.GetKind(),
-				Name:  obj.GetName(),
-			})
-		}
-	}
-	return pausedObject, nil
-}
-
-// computeHash returns a hash value calculated from pod template and
-// a collisionCount to avoid hash collision. The hash will be safe encoded to
-// avoid bad words.
-func computeHash(template *packagesv1alpha1.PackageSetTemplate, collisionCount *int32) string {
-	hasher := fnv.New32a()
-	deepHashObject(hasher, *template)
-
-	// Add collisionCount in the hash if it exists.
-	if collisionCount != nil {
-		collisionCountBytes := make([]byte, 8)
-		binary.LittleEndian.PutUint32(
-			collisionCountBytes, uint32(*collisionCount))
-		hasher.Write(collisionCountBytes)
-	}
-
-	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
-}
-
-// deepHashObject writes specified object to hash using the spew library
-// which follows pointers and prints actual values of the nested objects
-// ensuring the hash does not change when a pointer changes.
-func deepHashObject(hasher hash.Hash, objectToWrite interface{}) {
-	hasher.Reset()
-	printer := spew.ConfigState{
-		Indent:         " ",
-		SortKeys:       true,
-		DisableMethods: true,
-		SpewKeys:       true,
-	}
-	printer.Fprintf(hasher, "%#v", objectToWrite)
 }

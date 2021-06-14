@@ -1,4 +1,4 @@
-package packageset
+package controller
 
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"

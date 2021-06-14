@@ -1,12 +1,13 @@
-package packagedeployment
+package controller
 
 import (
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 )
 
 func TestPackageSetsByRevision(t *testing.T) {

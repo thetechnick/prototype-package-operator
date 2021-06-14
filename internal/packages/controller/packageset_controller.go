@@ -1,4 +1,4 @@
-package packageset
+package controller
 
 import (
 	"context"
@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/yaml"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
@@ -193,23 +192,6 @@ func (r *PackageSetReconciler) checkDependencies(
 	return false, nil
 }
 
-func hasGVK(gvk schema.GroupVersionKind, apiResourceLists []*metav1.APIResourceList) bool {
-	for _, apiResourceList := range apiResourceLists {
-		if apiResourceList == nil {
-			continue
-		}
-
-		if gvk.GroupVersion().String() == apiResourceList.GroupVersion {
-			for _, apiResource := range apiResourceList.APIResources {
-				if gvk.Kind == apiResource.Kind {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 func (r *PackageSetReconciler) reconcilePhase(
 	ctx context.Context,
 	packageSet *packagesv1alpha1.PackageSet,
@@ -288,7 +270,7 @@ func (r *PackageSetReconciler) handleArchived(
 			}
 			obj.SetNamespace(packageSet.Namespace)
 
-			if !isPaused(packageSet, obj) {
+			if !isPackageSetPaused(packageSet, obj) {
 				if err := r.Delete(ctx, obj); err != nil && !errors.IsNotFound(err) {
 					return err
 				}
@@ -350,7 +332,7 @@ func (r *PackageSetReconciler) reconcileObject(
 		return fmt.Errorf("getting: %w", err)
 	}
 
-	if isPaused(packageSet, obj) {
+	if isPackageSetPaused(packageSet, obj) {
 		// Paused, don't reconcile.
 		// Just report the latest object state.
 		*obj = *currentObj
@@ -416,15 +398,7 @@ func (r *PackageSetReconciler) reconcileObject(
 	return nil
 }
 
-func unstructuredFromPackageObject(packageObject *packagesv1alpha1.PackageObject) (*unstructured.Unstructured, error) {
-	obj := &unstructured.Unstructured{}
-	if err := yaml.Unmarshal(packageObject.Object.Raw, obj); err != nil {
-		return nil, fmt.Errorf("converting RawExtension into unstructured: %w", err)
-	}
-	return obj, nil
-}
-
-func isPaused(packageSet *packagesv1alpha1.PackageSet, obj client.Object) bool {
+func isPackageSetPaused(packageSet *packagesv1alpha1.PackageSet, obj client.Object) bool {
 	if packageSet.Spec.Paused {
 		return true
 	}
@@ -433,16 +407,6 @@ func isPaused(packageSet *packagesv1alpha1.PackageSet, obj client.Object) bool {
 		if pausedObjectMatches(pausedObject, obj) {
 			return true
 		}
-	}
-	return false
-}
-
-func pausedObjectMatches(ppo packagesv1alpha1.PackagePausedObject, obj client.Object) bool {
-	gvk := obj.GetObjectKind().GroupVersionKind()
-	if gvk.Group == ppo.Group &&
-		gvk.Kind == ppo.Kind &&
-		obj.GetName() == ppo.Name {
-		return true
 	}
 	return false
 }

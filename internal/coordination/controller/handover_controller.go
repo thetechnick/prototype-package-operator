@@ -1,4 +1,4 @@
-package handover
+package controller
 
 import (
 	"context"
@@ -11,14 +11,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
 	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
@@ -35,10 +33,6 @@ type HandoverReconciler struct {
 	dw *dynamicwatcher.DynamicWatcher
 }
 
-const (
-	cacheFinalizer = "coordination.thetechnick.ninja/cache"
-)
-
 func (r *HandoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.dw = dynamicwatcher.New(r.Log, r.Scheme, r.RESTMapper(), r.DynamicClient)
 
@@ -51,10 +45,6 @@ func (r *HandoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-const (
-	maxParrallel = 1
-)
-
 func (r *HandoverReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("Handover", req.NamespacedName.String())
@@ -65,30 +55,16 @@ func (r *HandoverReconciler) Reconcile(
 	}
 
 	if !handover.DeletionTimestamp.IsZero() {
-		return ctrl.Result{}, r.handleDeletion(ctx, handover)
+		return ctrl.Result{}, handleDeletion(ctx, r.Client, r.dw, handover)
 	}
 
 	// Add finalizers
-	if !controllerutil.ContainsFinalizer(
-		handover, cacheFinalizer) {
-		controllerutil.AddFinalizer(handover, cacheFinalizer)
-		if err := r.Update(ctx, handover); err != nil {
-			return ctrl.Result{}, fmt.Errorf("adding finalizer: %w", err)
-		}
+	if err := ensureCacheFinalizer(ctx, r.Client, handover); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// Ensure watch
-	gvk := schema.GroupVersionKind{
-		Group:   handover.Spec.TargetAPI.Group,
-		Version: handover.Spec.TargetAPI.Version,
-		Kind:    handover.Spec.TargetAPI.Kind,
-	}
-	objType := &unstructured.Unstructured{}
-	objType.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   handover.Spec.TargetAPI.Group,
-		Version: handover.Spec.TargetAPI.Version,
-		Kind:    handover.Spec.TargetAPI.Kind,
-	})
+	gvk, objType, objListType := unstructuredFromTargetAPI(handover.Spec.TargetAPI)
 	if err := r.dw.Watch(handover, objType); err != nil {
 		return ctrl.Result{}, fmt.Errorf("watching %s: %w", gvk, err)
 	}
@@ -97,7 +73,9 @@ func (r *HandoverReconciler) Reconcile(
 	probe := internalprobe.Parse(handover.Spec.Probes)
 
 	// Handle processing objects
-	if err := r.handleProcessing(ctx, log, handover, objType, probe); err != nil {
+	var err error
+	if handover.Status.Processing, err = handleProcessing(
+		ctx, r.Client, log, handover, handover.Spec.Strategy, objType, probe, handover.Status.Processing); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -116,11 +94,8 @@ func (r *HandoverReconciler) Reconcile(
 	}
 	selector := labels.NewSelector().Add(*requirement)
 
-	objList := &unstructured.UnstructuredList{}
-	objList.SetGroupVersionKind(gvk)
-	objList.SetKind(gvk.Kind + "List")
 	if err := r.List(
-		ctx, objList,
+		ctx, objListType,
 		client.InNamespace(handover.Namespace),
 		client.MatchingLabelsSelector{
 			Selector: selector,
@@ -131,7 +106,7 @@ func (r *HandoverReconciler) Reconcile(
 
 	// Check state
 	var unavailable int
-	for _, obj := range objList.Items {
+	for _, obj := range objListType.Items {
 		if success, _ := probe.Probe(&obj); !success {
 			unavailable++
 		}
@@ -139,7 +114,7 @@ func (r *HandoverReconciler) Reconcile(
 
 	// split into old and new
 	groups := groupByLabelValues(
-		objList.Items, handover.Spec.Strategy.Relabel.LabelKey,
+		objListType.Items, handover.Spec.Strategy.Relabel.LabelKey,
 		handover.Spec.Strategy.Relabel.ToValue,
 		handover.Spec.Strategy.Relabel.FromValue,
 	)
@@ -161,7 +136,7 @@ func (r *HandoverReconciler) Reconcile(
 	}
 
 	// report counts
-	handover.Status.Stats.Found = int32(len(objList.Items))
+	handover.Status.Stats.Found = int32(len(objListType.Items))
 	handover.Status.Stats.Updated = int32(len(newObjs))
 	handover.Status.Stats.Available = handover.Status.Stats.Found - int32(unavailable)
 
@@ -192,35 +167,37 @@ func (r *HandoverReconciler) Reconcile(
 	return ctrl.Result{}, nil
 }
 
-func (r *HandoverReconciler) handleProcessing(
+func handleProcessing(
 	ctx context.Context,
+	c client.Client,
 	log logr.Logger,
-	handover *coordinationv1alpha1.Handover,
+	handover client.Object,
+	handoverStrategy coordinationv1alpha1.HandoverStrategy,
 	objType *unstructured.Unstructured,
 	probe internalprobe.Interface,
-) error {
-	var stillProcessing []coordinationv1alpha1.HandoverRef
-	for _, processing := range handover.Status.Processing {
+	processing []coordinationv1alpha1.HandoverRef,
+) (stillProcessing []coordinationv1alpha1.HandoverRef, err error) {
+	for _, processing := range processing {
 		processingObj := objType.DeepCopy()
-		err := r.Client.Get(ctx, types.NamespacedName{
+		err := c.Get(ctx, types.NamespacedName{
 			Name:      processing.Name,
-			Namespace: handover.Namespace,
+			Namespace: handover.GetNamespace(),
 		}, processingObj)
 		if errors.IsNotFound(err) {
 			// Object gone, remove it from processing queue.
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("getting object in process queue: %w", err)
+			return nil, fmt.Errorf("getting object in process queue: %w", err)
 		}
 
 		labels := processingObj.GetLabels()
 		if labels == nil ||
-			labels[handover.Spec.Strategy.Relabel.LabelKey] != handover.Spec.Strategy.Relabel.ToValue {
-			labels[handover.Spec.Strategy.Relabel.LabelKey] = handover.Spec.Strategy.Relabel.ToValue
+			labels[handoverStrategy.Relabel.LabelKey] != handoverStrategy.Relabel.ToValue {
+			labels[handoverStrategy.Relabel.LabelKey] = handoverStrategy.Relabel.ToValue
 			processingObj.SetLabels(labels)
-			if err := r.Update(ctx, processingObj); err != nil {
-				return fmt.Errorf("updating object in process queue: %w", err)
+			if err := c.Update(ctx, processingObj); err != nil {
+				return nil, fmt.Errorf("updating object in process queue: %w", err)
 			}
 		}
 
@@ -229,46 +206,5 @@ func (r *HandoverReconciler) handleProcessing(
 			stillProcessing = append(stillProcessing, processing)
 		}
 	}
-	handover.Status.Processing = stillProcessing
-	return nil
-}
-
-func groupByLabelValues(in []unstructured.Unstructured, labelKey string, values ...string) [][]unstructured.Unstructured {
-	out := make([][]unstructured.Unstructured, len(values))
-	for _, obj := range in {
-		if obj.GetLabels() == nil {
-			continue
-		}
-		if len(obj.GetLabels()[labelKey]) == 0 {
-			continue
-		}
-
-		for i, v := range values {
-			if obj.GetLabels()[labelKey] == v {
-				out[i] = append(out[i], obj)
-			}
-		}
-	}
-	return out
-}
-
-// handle deletion of the PackageSet
-func (r *HandoverReconciler) handleDeletion(
-	ctx context.Context,
-	handover *coordinationv1alpha1.Handover,
-) error {
-	if controllerutil.ContainsFinalizer(
-		handover, cacheFinalizer) {
-		controllerutil.RemoveFinalizer(
-			handover, cacheFinalizer)
-
-		if err := r.Update(ctx, handover); err != nil {
-			return fmt.Errorf("removing finalizer: %w", err)
-		}
-	}
-
-	if err := r.dw.Free(handover); err != nil {
-		return fmt.Errorf("free cache: %w", err)
-	}
-	return nil
+	return stillProcessing, nil
 }

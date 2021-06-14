@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	coordinationapis "github.com/thetechnick/package-operator/apis"
-	handovercontroller "github.com/thetechnick/package-operator/internal/controller/handover"
+	"github.com/thetechnick/package-operator/internal/coordination/controller"
 )
 
 var (
@@ -50,7 +50,7 @@ func main() {
 		Port:                       9443,
 		LeaderElectionResourceLock: "leases",
 		LeaderElection:             enableLeaderElection,
-		LeaderElectionID:           "8a4hp84a6s.addon-operator-lock",
+		LeaderElectionID:           "8a4hp84a6s.coordination-operator-lock",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -107,14 +107,25 @@ func main() {
 		}
 	}
 
-	if err = (&handovercontroller.HandoverReconciler{
+	if err = (&controller.HandoverReconciler{
 		Client:          mgr.GetClient(),
 		DynamicClient:   dynamicClient,
 		DiscoveryClient: discoveryClient,
-		Log:             ctrl.Log.WithName("controllers").WithName("PackageSet"),
+		Log:             ctrl.Log.WithName("controllers").WithName("Handover"),
 		Scheme:          mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PackageSet")
+		setupLog.Error(err, "unable to create controller", "controller", "Handover")
+		os.Exit(1)
+	}
+
+	if err = (&controller.AdoptionReconciler{
+		Client:          mgr.GetClient(),
+		DynamicClient:   dynamicClient,
+		DiscoveryClient: discoveryClient,
+		Log:             ctrl.Log.WithName("controllers").WithName("Adoption"),
+		Scheme:          mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Adoption")
 		os.Exit(1)
 	}
 
