@@ -9,29 +9,56 @@ import (
 
 // HandoverSpec defines the desired state of a Handover.
 type HandoverSpec struct {
-	Strategy HandoverStrategy         `json:"strategy"`
-	Target   HandoverTarget           `json:"target"`
-	Probes   []packagesv1alpha1.Probe `json:"probes"`
+	// Strategy to use when handing over objects between operators.
+	Strategy HandoverStrategy `json:"strategy"`
+	// TargetAPI to use for handover.
+	TargetAPI HandoverTargetAPI `json:"targetAPI"`
+	// Probes to check selected objects for availability.
+	Probes []packagesv1alpha1.Probe `json:"probes"`
 }
 
+// HandoverStrategy defines the strategy to handover objects.
 type HandoverStrategy struct {
-	Type    HandoverStrategyType         `json:"type"`
+	// Type of handover strategy. Can be "Relabel".
+	// +kubebuilder:default=Relabel
+	// +kubebuilder:validation:Enum={"Relabel"}
+	Type HandoverStrategyType `json:"type"`
+
+	// Relabel handover strategy configuration.
+	// Only present when type=Relabel.
 	Relabel *HandoverStrategyRelabelSpec `json:"relabel,omitempty"`
 }
 
 type HandoverStrategyType string
 
 const (
+	// Relabel will change a specified label object after object.
 	HandoverStrategyRelabel HandoverStrategyType = "Relabel"
 )
 
+// Relabel handover strategy definition.
 type HandoverStrategyRelabelSpec struct {
-	Label    string `json:"label"`
-	OldValue string `json:"oldValue"`
-	NewValue string `json:"newValue"`
+	// LabelKey defines the labelKey to change the value of.
+	// +kubebuilder:validation:MinLength=1
+	LabelKey string `json:"labelKey"`
+
+	// FromValue defines the initial value of the label.
+	// +kubebuilder:validation:MinLength=1
+	FromValue string `json:"fromValue"`
+
+	// ToValue defines the desired value of the label after handover.
+	// +kubebuilder:validation:MinLength=1
+	ToValue string `json:"toValue"`
+
+	// MaxUnavailable defines how many objects may become unavailable due to the handover at the same time.
+	// Cannot be below 1, because we cannot surge while relabling to create more instances.
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	MaxUnavailable int `json:"maxUnavailable"`
 }
 
-type HandoverTarget struct {
+//
+type HandoverTargetAPI struct {
 	Group   string `json:"group"`
 	Version string `json:"version"`
 	Kind    string `json:"kind"`
@@ -39,8 +66,10 @@ type HandoverTarget struct {
 
 // HandoverStatus defines the observed state of a Handover
 type HandoverStatus struct {
-	Processing []HandoverRef       `json:"processing,omitempty"`
-	Stats      HandoverStatusStats `json:"stats,omitempty"`
+	// Processing set of objects during handover.
+	Processing []HandoverRef `json:"processing,omitempty"`
+	// Statistics of the handover process.
+	Stats HandoverStatusStats `json:"stats,omitempty"`
 	// The most recent generation observed by the controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions is a list of status conditions ths object is in.

@@ -53,6 +53,7 @@ spec:
             description: HandoverSpec defines the desired state of a Handover.
             properties:
               probes:
+                description: Probes to check selected objects for availability.
                 items:
                   description: Defines probe parameters to check parts of a package.
                   properties:
@@ -93,26 +94,51 @@ spec:
                   type: object
                 type: array
               strategy:
+                description: Strategy to use when handing over objects between operators.
                 properties:
                   relabel:
+                    description: Relabel handover strategy configuration. Only present
+                      when type=Relabel.
                     properties:
-                      label:
+                      fromValue:
+                        description: FromValue defines the initial value of the label.
+                        minLength: 1
                         type: string
-                      newValue:
+                      labelKey:
+                        description: LabelKey defines the labelKey to change the value
+                          of.
+                        minLength: 1
                         type: string
-                      oldValue:
+                      maxUnavailable:
+                        default: 1
+                        description: MaxUnavailable defines how many objects may become
+                          unavailable due to the handover at the same time. Cannot
+                          be below 1, because we cannot surge while relabling to create
+                          more instances.
+                        minimum: 1
+                        type: integer
+                      toValue:
+                        description: ToValue defines the desired value of the label
+                          after handover.
+                        minLength: 1
                         type: string
                     required:
-                    - label
-                    - newValue
-                    - oldValue
+                    - fromValue
+                    - labelKey
+                    - maxUnavailable
+                    - toValue
                     type: object
                   type:
+                    default: Relabel
+                    description: Type of handover strategy. Can be "Relabel".
+                    enum:
+                    - Relabel
                     type: string
                 required:
                 - type
                 type: object
-              target:
+              targetAPI:
+                description: TargetAPI to use for handover.
                 properties:
                   group:
                     type: string
@@ -128,7 +154,7 @@ spec:
             required:
             - probes
             - strategy
-            - target
+            - targetAPI
             type: object
           status:
             default:
@@ -216,6 +242,7 @@ spec:
                   status - please use .Conditions from code'
                 type: string
               processing:
+                description: Processing set of objects during handover.
                 items:
                   properties:
                     name:
@@ -232,6 +259,7 @@ spec:
                   type: object
                 type: array
               stats:
+                description: Statistics of the handover process.
                 properties:
                   available:
                     format: int32

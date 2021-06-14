@@ -6,10 +6,11 @@ spec:
   strategy:
     type: Relabel
     relabel:
-      label: operator-version
-      oldValue: v1
-      newValue: v2
-  target:
+      labelKey: operator-version
+      fromValue: v1
+      toValue: v2
+      maxUnavailable: 1
+  targetAPI:
     group: ""
     kind: ConfigMap
     version: v1

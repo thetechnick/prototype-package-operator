@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -78,15 +79,15 @@ func (r *HandoverReconciler) Reconcile(
 
 	// Ensure watch
 	gvk := schema.GroupVersionKind{
-		Group:   handover.Spec.Target.Group,
-		Version: handover.Spec.Target.Version,
-		Kind:    handover.Spec.Target.Kind,
+		Group:   handover.Spec.TargetAPI.Group,
+		Version: handover.Spec.TargetAPI.Version,
+		Kind:    handover.Spec.TargetAPI.Kind,
 	}
 	objType := &unstructured.Unstructured{}
 	objType.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   handover.Spec.Target.Group,
-		Version: handover.Spec.Target.Version,
-		Kind:    handover.Spec.Target.Kind,
+		Group:   handover.Spec.TargetAPI.Group,
+		Version: handover.Spec.TargetAPI.Version,
+		Kind:    handover.Spec.TargetAPI.Kind,
 	})
 	if err := r.dw.Watch(handover, objType); err != nil {
 		return ctrl.Result{}, fmt.Errorf("watching %s: %w", gvk, err)
@@ -103,11 +104,11 @@ func (r *HandoverReconciler) Reconcile(
 	// List all objects
 	// select all objects with new or old label value
 	requirement, err := labels.NewRequirement(
-		handover.Spec.Strategy.Relabel.Label,
+		handover.Spec.Strategy.Relabel.LabelKey,
 		selection.In,
 		[]string{
-			handover.Spec.Strategy.Relabel.NewValue,
-			handover.Spec.Strategy.Relabel.OldValue,
+			handover.Spec.Strategy.Relabel.ToValue,
+			handover.Spec.Strategy.Relabel.FromValue,
 		},
 	)
 	if err != nil {
@@ -138,27 +139,25 @@ func (r *HandoverReconciler) Reconcile(
 
 	// split into old and new
 	groups := groupByLabelValues(
-		objList.Items, handover.Spec.Strategy.Relabel.Label,
-		handover.Spec.Strategy.Relabel.NewValue,
-		handover.Spec.Strategy.Relabel.OldValue,
+		objList.Items, handover.Spec.Strategy.Relabel.LabelKey,
+		handover.Spec.Strategy.Relabel.ToValue,
+		handover.Spec.Strategy.Relabel.FromValue,
 	)
 	newObjs := groups[0]
 	oldObjs := groups[1]
 
-	if unavailable == 0 {
-		// Don't process anymore when something is unavailable.
-		for _, obj := range oldObjs {
-			if len(handover.Status.Processing) >= maxParrallel {
-				break
-			}
-
-			handover.Status.Processing = append(
-				handover.Status.Processing,
-				coordinationv1alpha1.HandoverRef{
-					UID:  obj.GetUID(),
-					Name: obj.GetName(),
-				})
+	for _, obj := range oldObjs {
+		if len(handover.Status.Processing)+unavailable >= handover.
+			Spec.Strategy.Relabel.MaxUnavailable {
+			break
 		}
+
+		handover.Status.Processing = append(
+			handover.Status.Processing,
+			coordinationv1alpha1.HandoverRef{
+				UID:  obj.GetUID(),
+				Name: obj.GetName(),
+			})
 	}
 
 	// report counts
@@ -207,14 +206,18 @@ func (r *HandoverReconciler) handleProcessing(
 			Name:      processing.Name,
 			Namespace: handover.Namespace,
 		}, processingObj)
+		if errors.IsNotFound(err) {
+			// Object gone, remove it from processing queue.
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("getting object in process queue: %w", err)
 		}
 
 		labels := processingObj.GetLabels()
 		if labels == nil ||
-			labels[handover.Spec.Strategy.Relabel.Label] != handover.Spec.Strategy.Relabel.NewValue {
-			labels[handover.Spec.Strategy.Relabel.Label] = handover.Spec.Strategy.Relabel.NewValue
+			labels[handover.Spec.Strategy.Relabel.LabelKey] != handover.Spec.Strategy.Relabel.ToValue {
+			labels[handover.Spec.Strategy.Relabel.LabelKey] = handover.Spec.Strategy.Relabel.ToValue
 			processingObj.SetLabels(labels)
 			if err := r.Update(ctx, processingObj); err != nil {
 				return fmt.Errorf("updating object in process queue: %w", err)
