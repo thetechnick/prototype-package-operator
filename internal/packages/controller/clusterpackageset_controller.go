@@ -350,10 +350,11 @@ func (r *ClusterPackageSetReconciler) reconcileObject(
 		return fmt.Errorf("watching new resource: %w", err)
 	}
 
+	gvk := obj.GroupVersionKind()
 	currentObj := obj.DeepCopy()
 	err := r.Get(ctx, client.ObjectKeyFromObject(obj), currentObj)
 	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("getting: %w", err)
+		return fmt.Errorf("getting %s: %w", gvk, err)
 	}
 
 	if isClusterPackageSetPaused(packageSet, obj) {
@@ -366,7 +367,7 @@ func (r *ClusterPackageSetReconciler) reconcileObject(
 	if errors.IsNotFound(err) {
 		err := r.Create(ctx, obj)
 		if err != nil {
-			return fmt.Errorf("creating: %w", err)
+			return fmt.Errorf("creating %s: %w", gvk, err)
 		}
 	}
 

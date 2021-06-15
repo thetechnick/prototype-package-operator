@@ -135,16 +135,30 @@ func (dw *DynamicWatcher) Watch(owner client.Object, obj runtime.Object) error {
 	client := dw.client.Resource(restMapping.Resource)
 
 	ctx := dw.ctx
-	informer := cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return client.Namespace(owner.GetNamespace()).List(ctx, options)
+	var informer cache.SharedIndexInformer
+	if owner.GetNamespace() == "" {
+		informer = cache.NewSharedIndexInformer(
+			&cache.ListWatch{
+				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+					return client.List(ctx, options)
+				},
+				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+					return client.Watch(ctx, options)
+				},
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return client.Namespace(owner.GetNamespace()).Watch(ctx, options)
+			obj, 10*time.Hour, nil)
+	} else {
+		informer = cache.NewSharedIndexInformer(
+			&cache.ListWatch{
+				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+					return client.Namespace(owner.GetNamespace()).List(ctx, options)
+				},
+				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+					return client.Namespace(owner.GetNamespace()).Watch(ctx, options)
+				},
 			},
-		},
-		obj, 10*time.Hour, nil)
+			obj, 10*time.Hour, nil)
+	}
 	s := source.Informer{
 		Informer: informer,
 	}
@@ -203,7 +217,8 @@ type ownerRefGetter interface {
 type EnqueueWatchingObjects struct {
 	WatcherRefGetter ownerRefGetter
 	// WatcherType is the type of the Owner object to look for in OwnerReferences.  Only Group and Kind are compared.
-	WatcherType runtime.Object
+	WatcherType   runtime.Object
+	ClusterScoped bool
 
 	scheme *runtime.Scheme
 	// groupKind is the cached Group and Kind from WatcherType
@@ -243,10 +258,19 @@ func (e *EnqueueWatchingObjects) enqueueWatchers(obj client.Object, q workqueue.
 		panic(err)
 	}
 
-	ownerRefs := e.WatcherRefGetter.OwnersForNamespacedGKV(namespacedGKV{
-		GroupVersionKind: gvk,
-		Namespace:        obj.GetNamespace(),
-	})
+	var ngvk namespacedGKV
+	if e.ClusterScoped {
+		ngvk = namespacedGKV{
+			GroupVersionKind: gvk,
+		}
+	} else {
+		ngvk = namespacedGKV{
+			GroupVersionKind: gvk,
+			Namespace:        obj.GetNamespace(),
+		}
+	}
+
+	ownerRefs := e.WatcherRefGetter.OwnersForNamespacedGKV(ngvk)
 	for _, ownerRef := range ownerRefs {
 		if ownerRef.Kind != e.groupKind.Kind ||
 			ownerRef.Group != e.groupKind.Group {

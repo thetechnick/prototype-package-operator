@@ -117,6 +117,10 @@ spec:
                           more instances.
                         minimum: 1
                         type: integer
+                      statusPath:
+                        description: Status path to validate that the new operator
+                          is posting status information now.
+                        type: string
                       toValue:
                         description: ToValue defines the desired value of the label
                           after handover.
@@ -126,6 +130,7 @@ spec:
                     - fromValue
                     - labelKey
                     - maxUnavailable
+                    - statusPath
                     - toValue
                     type: object
                   type:
@@ -246,6 +251,8 @@ spec:
                 items:
                   properties:
                     name:
+                      type: string
+                    namespace:
                       type: string
                     uid:
                       description: UID is a type that holds unique ID values, including

@@ -38,6 +38,7 @@ func (r *ClusterHandoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(r.dw, &dynamicwatcher.EnqueueWatchingObjects{
 			WatcherType:      &coordinationv1alpha1.ClusterHandover{},
 			WatcherRefGetter: r.dw,
+			ClusterScoped:    true,
 		}).
 		Complete(r)
 }
@@ -72,7 +73,7 @@ func (r *ClusterHandoverReconciler) Reconcile(
 	// Handle processing objects
 	var err error
 	if handover.Status.Processing, err = handleProcessing(
-		ctx, r.Client, log, handover, handover.Spec.Strategy, objType, probe, handover.Status.Processing); err != nil {
+		ctx, r.Client, log, handover.Spec.Strategy, objType, probe, handover.Status.Processing); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -127,8 +128,9 @@ func (r *ClusterHandoverReconciler) Reconcile(
 		handover.Status.Processing = append(
 			handover.Status.Processing,
 			coordinationv1alpha1.HandoverRef{
-				UID:  obj.GetUID(),
-				Name: obj.GetName(),
+				UID:       obj.GetUID(),
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
 			})
 	}
 

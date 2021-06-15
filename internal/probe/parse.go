@@ -32,7 +32,8 @@ func Parse(probeSpecs []packagesv1alpha1.Probe) Interface {
 
 		default:
 			// Unknown probe type
-			continue
+			panic("unknown probe type")
+			// continue
 		}
 
 		probeList = append(probeList, probe)

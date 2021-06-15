@@ -72,13 +72,17 @@ func (r *AdoptionReconciler) Reconcile(
 	}
 
 	meta.SetStatusCondition(&adoption.Status.Conditions, metav1.Condition{
-		Type:    coordinationv1alpha1.AdoptionActive,
-		Status:  metav1.ConditionTrue,
-		Reason:  "Setup",
-		Message: "Controller is setup and adding labels.",
+		Type:               coordinationv1alpha1.AdoptionActive,
+		Status:             metav1.ConditionTrue,
+		Reason:             "Setup",
+		Message:            "Controller is setup and adding labels.",
+		ObservedGeneration: adoption.Generation,
 	})
 
-	return ctrl.Result{}, nil
+	adoption.Status.ObservedGeneration = adoption.Generation
+	adoption.Status.Phase = coordinationv1alpha1.AdoptionPhaseActive
+
+	return ctrl.Result{}, r.Status().Update(ctx, adoption)
 }
 
 func relabel(
@@ -88,15 +92,16 @@ func relabel(
 	gvk schema.GroupVersionKind,
 ) error {
 	// Build selector
-	selector := labels.NewSelector()
+	var requirements []labels.Requirement
 	for k := range specLabels {
 		requirement, err := labels.NewRequirement(
 			k, selection.DoesNotExist, nil)
 		if err != nil {
 			return fmt.Errorf("building selector: %w", err)
 		}
-		selector.Add(*requirement)
+		requirements = append(requirements, *requirement)
 	}
+	selector := labels.NewSelector().Add(requirements...)
 
 	// List all the things!
 	if err := c.List(

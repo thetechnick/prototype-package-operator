@@ -66,9 +66,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
-// +kubebuilder:printcolumn:name="Found",type="integer",JSONPath=".status.stats.found"
-// +kubebuilder:printcolumn:name="Available",type="integer",JSONPath=".status.stats.available"
-// +kubebuilder:printcolumn:name="Updated",type="integer",JSONPath=".status.stats.updated"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type Adoption struct {
 	metav1.TypeMeta   `json:",inline"`

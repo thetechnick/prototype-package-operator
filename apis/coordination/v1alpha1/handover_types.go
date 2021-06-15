@@ -50,6 +50,9 @@ type HandoverStrategyRelabelSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	ToValue string `json:"toValue"`
 
+	// Status path to validate that the new operator is posting status information now.
+	StatusPath string `json:"statusPath"`
+
 	// MaxUnavailable defines how many objects may become unavailable due to the handover at the same time.
 	// Cannot be below 1, because we cannot surge while relabling to create more instances.
 	// +kubebuilder:default=1
@@ -83,8 +86,9 @@ type HandoverStatusStats struct {
 }
 
 type HandoverRef struct {
-	UID  types.UID `json:"uid"`
-	Name string    `json:"name"`
+	UID       types.UID `json:"uid"`
+	Name      string    `json:"name"`
+	Namespace string    `json:"namespace,omitempty"`
 }
 
 const (

@@ -36,6 +36,7 @@ func (r *ClusterAdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(r.dw, &dynamicwatcher.EnqueueWatchingObjects{
 			WatcherType:      &coordinationv1alpha1.ClusterAdoption{},
 			WatcherRefGetter: r.dw,
+			ClusterScoped:    true,
 		}).
 		Complete(r)
 }
@@ -68,11 +69,14 @@ func (r *ClusterAdoptionReconciler) Reconcile(
 	}
 
 	meta.SetStatusCondition(&adoption.Status.Conditions, metav1.Condition{
-		Type:    coordinationv1alpha1.ClusterAdoptionActive,
-		Status:  metav1.ConditionTrue,
-		Reason:  "Setup",
-		Message: "Controller is setup and adding labels.",
+		Type:               coordinationv1alpha1.ClusterAdoptionActive,
+		Status:             metav1.ConditionTrue,
+		Reason:             "Setup",
+		Message:            "Controller is setup and adding labels.",
+		ObservedGeneration: adoption.Generation,
 	})
+	adoption.Status.ObservedGeneration = adoption.Generation
+	adoption.Status.Phase = coordinationv1alpha1.ClusterAdoptionPhaseActive
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, r.Status().Update(ctx, adoption)
 }

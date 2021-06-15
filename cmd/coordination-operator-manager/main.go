@@ -129,6 +129,28 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controller.ClusterHandoverReconciler{
+		Client:          mgr.GetClient(),
+		DynamicClient:   dynamicClient,
+		DiscoveryClient: discoveryClient,
+		Log:             ctrl.Log.WithName("controllers").WithName("ClusterHandover"),
+		Scheme:          mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterHandover")
+		os.Exit(1)
+	}
+
+	if err = (&controller.ClusterAdoptionReconciler{
+		Client:          mgr.GetClient(),
+		DynamicClient:   dynamicClient,
+		DiscoveryClient: discoveryClient,
+		Log:             ctrl.Log.WithName("controllers").WithName("ClusterAdoption"),
+		Scheme:          mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterAdoption")
+		os.Exit(1)
+	}
+
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")

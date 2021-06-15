@@ -9,6 +9,29 @@ spec:
       labelKey: operator-version
       fromValue: v1
       toValue: v2
+      statusPath: .status.operatorVersion
+      maxUnavailable: 1
+  targetAPI:
+    group: ""
+    kind: ConfigMap
+    version: v1
+  probes: # check for availability of stufff
+  - type: Condition
+    condition:
+      type: Available
+      status: "True"
+---
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: Handover
+metadata:
+  name: config-maps
+spec:
+  strategy:
+    type: Relabel
+    relabel:
+      labelKey: operator-version
+      fromValue: v1
+      toValue: v2
       maxUnavailable: 1
   targetAPI:
     group: ""
@@ -59,7 +82,7 @@ spec:
 ---
 apiVersion: v1
 kind: ConfigMap
-metadata: 
+metadata:
   name: cm-1
   labels:
     operator-version: v1
@@ -70,7 +93,7 @@ data:
 ---
 apiVersion: v1
 kind: ConfigMap
-metadata: 
+metadata:
   name: cm-2
   labels:
     operator-version: v1
@@ -81,7 +104,7 @@ data:
 ---
 apiVersion: v1
 kind: ConfigMap
-metadata: 
+metadata:
   name: cm-3
   labels:
     operator-version: v1
@@ -92,7 +115,7 @@ data:
 ---
 apiVersion: v1
 kind: ConfigMap
-metadata: 
+metadata:
   name: cm-4
   labels:
     operator-version: v1

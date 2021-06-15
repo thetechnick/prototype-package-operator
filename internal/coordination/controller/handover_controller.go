@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -75,7 +76,7 @@ func (r *HandoverReconciler) Reconcile(
 	// Handle processing objects
 	var err error
 	if handover.Status.Processing, err = handleProcessing(
-		ctx, r.Client, log, handover, handover.Spec.Strategy, objType, probe, handover.Status.Processing); err != nil {
+		ctx, r.Client, log, handover.Spec.Strategy, objType, probe, handover.Status.Processing); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -130,8 +131,9 @@ func (r *HandoverReconciler) Reconcile(
 		handover.Status.Processing = append(
 			handover.Status.Processing,
 			coordinationv1alpha1.HandoverRef{
-				UID:  obj.GetUID(),
-				Name: obj.GetName(),
+				UID:       obj.GetUID(),
+				Name:      obj.GetName(),
+				Namespace: handover.Namespace,
 			})
 	}
 
@@ -171,7 +173,6 @@ func handleProcessing(
 	ctx context.Context,
 	c client.Client,
 	log logr.Logger,
-	handover client.Object,
 	handoverStrategy coordinationv1alpha1.HandoverStrategy,
 	objType *unstructured.Unstructured,
 	probe internalprobe.Interface,
@@ -181,7 +182,7 @@ func handleProcessing(
 		processingObj := objType.DeepCopy()
 		err := c.Get(ctx, types.NamespacedName{
 			Name:      processing.Name,
-			Namespace: handover.GetNamespace(),
+			Namespace: processing.Namespace,
 		}, processingObj)
 		if errors.IsNotFound(err) {
 			// Object gone, remove it from processing queue.
@@ -199,6 +200,17 @@ func handleProcessing(
 			if err := c.Update(ctx, processingObj); err != nil {
 				return nil, fmt.Errorf("updating object in process queue: %w", err)
 			}
+		}
+
+		fieldPath := strings.Split(strings.Trim(handoverStrategy.Relabel.StatusPath, "."), ".")
+		statusValue, ok, err := unstructured.NestedString(processingObj.Object, fieldPath...)
+		if err != nil {
+			return nil, fmt.Errorf("getting status value: %w", err)
+		}
+		if !ok || statusValue != handoverStrategy.Relabel.ToValue {
+			log.Info("waiting for status field to update", "objName", processing.Name)
+			stillProcessing = append(stillProcessing, processing)
+			break
 		}
 
 		if success, message := probe.Probe(processingObj); !success {
