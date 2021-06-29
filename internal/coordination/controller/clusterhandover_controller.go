@@ -140,7 +140,7 @@ func (r *ClusterHandoverReconciler) Reconcile(
 	handover.Status.Stats.Available = handover.Status.Stats.Found - int32(unavailable)
 
 	handover.Status.ObservedGeneration = handover.Generation
-	if handover.Status.Stats.Found == handover.Status.Stats.Updated {
+	if handover.Status.Stats.Found == handover.Status.Stats.Updated && len(handover.Status.Processing) == 0 {
 		handover.Status.Phase = coordinationv1alpha1.ClusterHandoverPhaseCompleted
 		meta.SetStatusCondition(&handover.Status.Conditions, metav1.Condition{
 			Type:               coordinationv1alpha1.ClusterHandoverCompleted,
