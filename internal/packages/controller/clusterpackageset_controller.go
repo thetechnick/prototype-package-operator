@@ -270,6 +270,10 @@ func (r *ClusterPackageSetReconciler) handleDeletion(
 		return nil
 	}
 
+	if err := r.dw.Free(packageSet); err != nil {
+		return fmt.Errorf("free cache: %w", err)
+	}
+
 	if controllerutil.ContainsFinalizer(
 		packageSet, packageSetCacheFinalizer) {
 		controllerutil.RemoveFinalizer(
@@ -278,10 +282,6 @@ func (r *ClusterPackageSetReconciler) handleDeletion(
 		if err := r.Update(ctx, packageSet); err != nil {
 			return fmt.Errorf("removing finalizer: %w", err)
 		}
-	}
-
-	if err := r.dw.Free(packageSet); err != nil {
-		return fmt.Errorf("free cache: %w", err)
 	}
 	return nil
 }

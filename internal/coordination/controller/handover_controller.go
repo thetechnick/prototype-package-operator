@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/util/jsonpath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -202,12 +202,27 @@ func handleProcessing(
 			}
 		}
 
-		fieldPath := strings.Split(strings.Trim(handoverStrategy.Relabel.StatusPath, "."), ".")
-		statusValue, ok, err := unstructured.NestedString(processingObj.Object, fieldPath...)
+		jsonPath := jsonpath.New("status-thing!!!").AllowMissingKeys(true)
+		// TODO: SOOOO much validation for paths
+		if err := jsonPath.Parse("{" + handoverStrategy.Relabel.StatusPath + "}"); err != nil {
+			return nil, fmt.Errorf("invalid jsonpath: %w", err)
+		}
+
+		statusValues, err := jsonPath.FindResults(processingObj.Object)
 		if err != nil {
 			return nil, fmt.Errorf("getting status value: %w", err)
 		}
-		if !ok || statusValue != handoverStrategy.Relabel.ToValue {
+
+		// TODO: even more proper handling
+		if len(statusValues[0]) > 1 {
+			return nil, fmt.Errorf("multiple status values returned: %s", statusValues)
+		}
+		if len(statusValues[0]) == 0 {
+			return stillProcessing, nil
+		}
+
+		statusValue := statusValues[0][0].Interface()
+		if statusValue != handoverStrategy.Relabel.ToValue {
 			log.Info("waiting for status field to update", "objName", processing.Name)
 			stillProcessing = append(stillProcessing, processing)
 			break
