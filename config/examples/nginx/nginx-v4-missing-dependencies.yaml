@@ -1,0 +1,70 @@
+apiVersion: packages.thetechnick.ninja/v1alpha1
+kind: PackageDeployment
+metadata:
+  name: nginx
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      annotations:
+        description: This release is missing dependencies, so it will never install.
+      labels:
+        app: nginx
+    spec:
+      phases:
+      - name: deploy
+        objects:
+        - object:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata: 
+              name: nginx-v2
+            data:
+              key1: test123
+              key2: test123
+              key3: test123
+        - object:
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: nginx-deployment-v4
+              labels:
+                app: nginx
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: nginx
+              template:
+                metadata:
+                  labels:
+                    app: nginx
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.15.2
+                    ports:
+                    - containerPort: 80
+      readinessProbes:
+      - selector:
+          type: Kind
+          kind:
+            group: apps
+            kind: Deployment
+        probes:
+        - type: Condition
+          condition:
+            type: Available
+            status: "True"
+        - type: FieldsEqual
+          fieldsEqual:
+            fieldA: .status.updatedReplicas
+            fieldB: .status.replicas
+      dependencies:
+      - type: KubernetesAPI
+        kubernetesAPI:
+          group: superimportant.openshift.io
+          version: v1alpha1
+          kind: CoolDB

@@ -1,0 +1,125 @@
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: Handover
+metadata:
+  name: config-maps
+spec:
+  strategy:
+    type: Relabel
+    relabel:
+      labelKey: operator-version
+      fromValue: v1
+      toValue: v2
+      statusPath: .status.operatorVersion
+      maxUnavailable: 1
+  targetAPI:
+    group: ""
+    kind: ConfigMap
+    version: v1
+  probes: # check for availability of stufff
+  - type: Condition
+    condition:
+      type: Available
+      status: "True"
+---
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: Handover
+metadata:
+  name: config-maps
+spec:
+  strategy:
+    type: Relabel
+    relabel:
+      labelKey: operator-version
+      fromValue: v1
+      toValue: v2
+      maxUnavailable: 1
+  targetAPI:
+    group: ""
+    kind: ConfigMap
+    version: v1
+  probes:
+  - type: FieldsEqual
+    fieldsEqual:
+      fieldA: .data.key1
+      fieldB: .metadata.annotations.test
+---
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: Adoption
+metadata:
+  name: config-maps
+spec:
+  strategy:
+    type: Static
+    static:
+      labels:
+        operator-version: v4
+  targetAPI:
+    group: ""
+    kind: ConfigMap
+    version: v1
+---
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: Adoption
+metadata:
+  name: config-maps
+spec:
+  strategy:
+    type: Shard
+    shard:
+      balancing:
+        type: RoundRobin|LeastObjects
+      labels:
+      - operator-version: v4
+        shard: shard-1
+      - operator-version: v4
+        shard: shard-2
+      - operator-version: v4
+        shard: shard-3
+  targetAPI:
+    group: ""
+    kind: ConfigMap
+    version: v1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-1
+  labels:
+    operator-version: v1
+data:
+  key1: test123
+  key2: test123
+  key3: test123
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-2
+  labels:
+    operator-version: v1
+data:
+  key1: test123
+  key2: test123
+  key3: test123
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-3
+  labels:
+    operator-version: v1
+data:
+  key1: test123
+  key2: test123
+  key3: test123
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-4
+  labels:
+    operator-version: v1
+data:
+  key1: test123
+  key2: test123
+  key3: test123
