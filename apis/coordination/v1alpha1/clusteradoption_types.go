@@ -16,12 +16,16 @@ type ClusterAdoptionSpec struct {
 type ClusterAdoptionStrategy struct {
 	// Type of handover strategy. Can be "Static".
 	// +kubebuilder:default=Static
-	// +kubebuilder:validation:Enum={"Static"}
+	// +kubebuilder:validation:Enum={"Static","RoundRobin"}
 	Type ClusterAdoptionStrategyType `json:"type"`
 
 	// Static handover strategy configuration.
 	// Only present when type=Static.
-	Static *ClusterAdoptionStrategyStaticSpec `json:"static,omitempty"`
+	Static *AdoptionStrategyStaticSpec `json:"static,omitempty"`
+
+	// RoundRobin adoption strategy configuration.
+	// Only present when type=RoundRobin.
+	RoundRobin *AdoptionStrategyRoundRobinSpec `json:"roundRobin,omitempty"`
 }
 
 type ClusterAdoptionStrategyType string
@@ -29,12 +33,9 @@ type ClusterAdoptionStrategyType string
 const (
 	// Static will change a specified label object after object.
 	ClusterAdoptionStrategyStatic ClusterAdoptionStrategyType = "Static"
+	// RoundRobin will apply given labels via a round robin strategy.
+	ClusterAdoptionStrategyRoundRobin ClusterAdoptionStrategyType = "RoundRobin"
 )
-
-type ClusterAdoptionStrategyStaticSpec struct {
-	// Labels to set on objects.
-	Labels map[string]string `json:"labels"`
-}
 
 // ClusterAdoptionStatus defines the observed state of a ClusterAdoption
 type ClusterAdoptionStatus struct {
@@ -46,6 +47,8 @@ type ClusterAdoptionStatus struct {
 	// it will go away as soon as kubectl can print conditions!
 	// Human readable status - please use .Conditions from code
 	Phase ClusterAdoptionPhase `json:"phase,omitempty"`
+	// Tracks round robin state to restart where the last operation ended.
+	RoundRobin *AdoptionRoundRobinStatus `json:"roundRobin,omitempty"`
 }
 
 const (
