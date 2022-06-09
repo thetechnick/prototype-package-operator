@@ -5,27 +5,27 @@ import (
 	"fmt"
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
-	"github.com/thetechnick/package-operator/internal/coordination"
+	"github.com/thetechnick/package-operator/internal/controllers/coordination"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type RoundRobinAdoptionReconciler[T operandPtr[O], O operand] struct {
+type RoundRobinAdoptionReconciler struct {
 	client client.Client
 }
 
-func (r *RoundRobinAdoptionReconciler[T, O]) Reconcile(
-	ctx context.Context, adoption T) (ctrl.Result, error) {
-	if getStrategyType(adoption) != roundRobinStrategy {
-		setRoundRobinStatus(adoption, nil)
+func (r *RoundRobinAdoptionReconciler) Reconcile(
+	ctx context.Context, adoption genericAdoption) (ctrl.Result, error) {
+	if adoption.GetStrategyType() != genericStrategyRoundRobin {
+		adoption.SetRoundRobinStatus(nil)
 
 		// noop, a different strategy will match
 		return ctrl.Result{}, nil
 	}
 
-	roundRobinSpec := getRoundRobinSpec(adoption)
+	roundRobinSpec := adoption.GetRoundRobinStrategy()
 	if roundRobinSpec == nil {
 		// TODO: Validate via webhook
 		return ctrl.Result{}, nil
@@ -36,12 +36,12 @@ func (r *RoundRobinAdoptionReconciler[T, O]) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	gvk, _, objListType := coordination.UnstructuredFromTargetAPI(getTargetAPI(adoption))
+	gvk, _, objListType := coordination.UnstructuredFromTargetAPI(adoption.GetTargetAPI())
 
 	// List all the things not yet labeled
 	if err := r.client.List(
 		ctx, objListType,
-		client.InNamespace(adoption.GetNamespace()), // can also set this for ClusterAdoption without issue.
+		client.InNamespace(adoption.ClientObject().GetNamespace()), // can also set this for ClusterAdoption without issue.
 		client.MatchingLabelsSelector{
 			Selector: selector,
 		},
@@ -70,15 +70,15 @@ func (r *RoundRobinAdoptionReconciler[T, O]) Reconcile(
 
 		if err := r.client.Update(ctx, &obj); err != nil {
 			// try to save the last committed index
-			setRoundRobinStatus(adoption, &coordinationv1alpha1.AdoptionRoundRobinStatus{
+			adoption.SetRoundRobinStatus(&coordinationv1alpha1.AdoptionRoundRobinStatus{
 				LastIndex: lastIndex,
 			})
-			_ = r.client.Status().Update(ctx, adoption)
+			_ = r.client.Status().Update(ctx, adoption.ClientObject())
 			return ctrl.Result{}, fmt.Errorf("setting labels: %w", err)
 		}
 
 		// track last committed index
-		setRoundRobinStatus(adoption, &coordinationv1alpha1.AdoptionRoundRobinStatus{
+		adoption.SetRoundRobinStatus(&coordinationv1alpha1.AdoptionRoundRobinStatus{
 			LastIndex: rrIndex,
 		})
 	}
@@ -94,40 +94,12 @@ func roundRobinIndex(lastIndex int, max int) int {
 	return index
 }
 
-func setRoundRobinStatus(
-	adoption client.Object,
-	rr *coordinationv1alpha1.AdoptionRoundRobinStatus,
-) {
-	switch o := adoption.(type) {
-	case *coordinationv1alpha1.Adoption:
-		o.Status.RoundRobin = rr
-	case *coordinationv1alpha1.ClusterAdoption:
-		o.Status.RoundRobin = rr
-	}
-}
-
-func getLastRoundRobinIndex(adoption client.Object) int {
-	switch o := adoption.(type) {
-	case *coordinationv1alpha1.Adoption:
-		if o.Status.RoundRobin != nil {
-			return o.Status.RoundRobin.LastIndex
-		}
-	case *coordinationv1alpha1.ClusterAdoption:
-		if o.Status.RoundRobin != nil {
-			return o.Status.RoundRobin.LastIndex
-		}
+func getLastRoundRobinIndex(adoption genericAdoption) int {
+	rr := adoption.GetRoundRobinStatus()
+	if rr != nil {
+		return rr.LastIndex
 	}
 	return -1 // no last index
-}
-
-func getRoundRobinSpec(adoption client.Object) *coordinationv1alpha1.AdoptionStrategyRoundRobinSpec {
-	switch o := adoption.(type) {
-	case *coordinationv1alpha1.Adoption:
-		return o.Spec.Strategy.RoundRobin
-	case *coordinationv1alpha1.ClusterAdoption:
-		return o.Spec.Strategy.RoundRobin
-	}
-	return nil
 }
 
 // Builds a labelSelector EXCLUDING all objects that could be targeted.

@@ -5,36 +5,36 @@ import (
 	"fmt"
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
-	"github.com/thetechnick/package-operator/internal/coordination"
+	"github.com/thetechnick/package-operator/internal/controllers/coordination"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type StaticAdoptionReconciler[T operandPtr[O], O operand] struct {
+type StaticAdoptionReconciler struct {
 	client client.Client
 }
 
-func (r *StaticAdoptionReconciler[T, O]) Reconcile(
-	ctx context.Context, adoption T) (ctrl.Result, error) {
-	if getStrategyType(adoption) != staticStrategy {
+func (r *StaticAdoptionReconciler) Reconcile(
+	ctx context.Context, adoption genericAdoption) (ctrl.Result, error) {
+	if adoption.GetStrategyType() != genericStrategyStatic {
 		// noop, a different strategy will match
 		return ctrl.Result{}, nil
 	}
 
-	specLabels := getStrategyStaticLabels(adoption)
+	specLabels := adoption.GetStaticStrategy().Labels
 	selector, err := negativeLabelSelectorFromLabels(specLabels)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	gvk, _, objListType := coordination.UnstructuredFromTargetAPI(getTargetAPI(adoption))
+	gvk, _, objListType := coordination.UnstructuredFromTargetAPI(adoption.GetTargetAPI())
 
 	// List all the things not yet labeled
 	if err := r.client.List(
 		ctx, objListType,
-		client.InNamespace(adoption.GetNamespace()), // can also set this for ClusterAdoption without issue.
+		client.InNamespace(adoption.ClientObject().GetNamespace()), // can also set this for ClusterAdoption without issue.
 		client.MatchingLabelsSelector{
 			Selector: selector,
 		},

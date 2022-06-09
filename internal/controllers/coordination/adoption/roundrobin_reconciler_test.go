@@ -15,13 +15,6 @@ import (
 	"github.com/thetechnick/package-operator/internal/testutil"
 )
 
-func newRRA[T operandPtr[O], O operand](
-	c client.Client, o O) *RoundRobinAdoptionReconciler[T, O] {
-	return &RoundRobinAdoptionReconciler[T, O]{
-		client: c,
-	}
-}
-
 // Noop case
 func TestRoundRobinAdoptionReconciler(t *testing.T) {
 	c := testutil.NewClient()
@@ -62,30 +55,32 @@ func TestRoundRobinAdoptionReconciler(t *testing.T) {
 		}).
 		Return(nil)
 
-	adoption := &coordinationv1alpha1.Adoption{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test",
-		},
-		Spec: coordinationv1alpha1.AdoptionSpec{
-			Strategy: coordinationv1alpha1.AdoptionStrategy{
-				Type: coordinationv1alpha1.AdoptionStrategyRoundRobin,
-				RoundRobin: &coordinationv1alpha1.AdoptionStrategyRoundRobinSpec{
-					Always: map[string]string{"always": "always"},
-					Options: []map[string]string{
-						{"option1": "option1"},
-						{"option2": "option2"},
-						{"option3": "option3"},
+	adoption := &GenericAdoption{
+		Adoption: coordinationv1alpha1.Adoption{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test",
+			},
+			Spec: coordinationv1alpha1.AdoptionSpec{
+				Strategy: coordinationv1alpha1.AdoptionStrategy{
+					Type: coordinationv1alpha1.AdoptionStrategyRoundRobin,
+					RoundRobin: &coordinationv1alpha1.AdoptionStrategyRoundRobinSpec{
+						Always: map[string]string{"always": "always"},
+						Options: []map[string]string{
+							{"option1": "option1"},
+							{"option2": "option2"},
+							{"option3": "option3"},
+						},
 					},
 				},
-			},
-			TargetAPI: coordinationv1alpha1.TargetAPI{
-				Group:   "test.thetechnick.ninja",
-				Version: "v1alpha1",
-				Kind:    "Test",
+				TargetAPI: coordinationv1alpha1.TargetAPI{
+					Group:   "test.thetechnick.ninja",
+					Version: "v1alpha1",
+					Kind:    "Test",
+				},
 			},
 		},
 	}
-	rra := newRRA(c, coordinationv1alpha1.Adoption{})
+	rra := &RoundRobinAdoptionReconciler{}
 	res, err := rra.Reconcile(ctx, adoption)
 
 	require.NoError(t, err)
@@ -129,8 +124,8 @@ func TestRoundRobinAdoptionReconciler_WrongStrategy(t *testing.T) {
 	c := testutil.NewClient()
 	ctx := context.Background()
 
-	rra := newRRA(c, coordinationv1alpha1.Adoption{})
-	res, err := rra.Reconcile(ctx, &coordinationv1alpha1.Adoption{})
+	rra := &RoundRobinAdoptionReconciler{client: c}
+	res, err := rra.Reconcile(ctx, &GenericAdoption{})
 
 	require.NoError(t, err)
 	assert.True(t, res.IsZero())

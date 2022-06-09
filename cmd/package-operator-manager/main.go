@@ -16,7 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	packageapis "github.com/thetechnick/package-operator/apis"
-	"github.com/thetechnick/package-operator/internal/packages/controller"
+	"github.com/thetechnick/package-operator/internal/controllers/packages/objectdeployment"
+	"github.com/thetechnick/package-operator/internal/controllers/packages/objectset"
 )
 
 var (
@@ -107,43 +108,35 @@ func main() {
 		}
 	}
 
-	if err = (&controller.PackageSetReconciler{
-		Client:          mgr.GetClient(),
-		DynamicClient:   dynamicClient,
-		DiscoveryClient: discoveryClient,
-		Log:             ctrl.Log.WithName("controllers").WithName("PackageSet"),
-		Scheme:          mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PackageSet")
+	// ObjectSet
+	if err = (objectset.NewObjectSetController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ObjectSet"),
+		mgr.GetScheme(), dynamicClient, discoveryClient,
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ObjectSet")
+		os.Exit(1)
+	}
+	if err = (objectset.NewClusterObjectSetController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ClusterObjectSet"),
+		mgr.GetScheme(), dynamicClient, discoveryClient,
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterObjectSet")
 		os.Exit(1)
 	}
 
-	if err = (&controller.PackageDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("PackageDeployment"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PackageDeployment")
+	// ObjectDeployment
+	if err = (objectdeployment.NewObjectDeploymentController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ObjectDeployment"),
+		mgr.GetScheme(),
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ObjectDeployment")
 		os.Exit(1)
 	}
-
-	if err = (&controller.ClusterPackageSetReconciler{
-		Client:          mgr.GetClient(),
-		DynamicClient:   dynamicClient,
-		DiscoveryClient: discoveryClient,
-		Log:             ctrl.Log.WithName("controllers").WithName("ClusterPackageSet"),
-		Scheme:          mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterPackageSet")
-		os.Exit(1)
-	}
-
-	if err = (&controller.ClusterPackageDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("ClusterPackageDeployment"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterPackageDeployment")
+	if err = (objectdeployment.NewClusterObjectDeploymentController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ClusterObjectDeployment"),
+		mgr.GetScheme(),
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterObjectDeployment")
 		os.Exit(1)
 	}
 

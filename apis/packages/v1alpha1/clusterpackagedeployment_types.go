@@ -27,6 +27,8 @@ type ClusterPackageDeploymentStatus struct {
 	Phase ClusterPackageDeploymentPhase `json:"phase,omitempty"`
 	// Count of hash collisions of the ClusterPackageDeployment.
 	CollisionCount *int32 `json:"collisionCount,omitempty"`
+	// Computed TemplateHash.
+	TemplateHash string `json:"templateHash,omitempty"`
 }
 
 const (

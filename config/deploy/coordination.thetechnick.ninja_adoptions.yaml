@@ -46,8 +46,31 @@ spec:
               strategy:
                 description: Strategy to use for adoption.
                 properties:
+                  roundRobin:
+                    description: RoundRobin adoption strategy configuration. Only
+                      present when type=RoundRobin.
+                    properties:
+                      always:
+                        additionalProperties:
+                          type: string
+                        description: Labels to set always, no matter the round robin
+                          choice.
+                        type: object
+                      options:
+                        description: Options for the round robin strategy to choose
+                          from. Only a single label set of all the provided options
+                          will be applied.
+                        items:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        type: array
+                    required:
+                    - always
+                    - options
+                    type: object
                   static:
-                    description: Static handover strategy configuration. Only present
+                    description: Static adoption strategy configuration. Only present
                       when type=Static.
                     properties:
                       labels:
@@ -60,9 +83,10 @@ spec:
                     type: object
                   type:
                     default: Static
-                    description: Type of handover strategy. Can be "Static".
+                    description: Type of adoption strategy. Can be "Static", "RoundRobin".
                     enum:
                     - Static
+                    - RoundRobin
                     type: string
                 required:
                 - type
@@ -170,6 +194,16 @@ spec:
                   it will go away as soon as kubectl can print conditions! Human readable
                   status - please use .Conditions from code'
                 type: string
+              roundRobin:
+                description: Tracks round robin state to restart where the last operation
+                  ended.
+                properties:
+                  lastIndex:
+                    description: Last index chosen by the round robin algorithm.
+                    type: integer
+                required:
+                - lastIndex
+                type: object
             type: object
         type: object
     served: true

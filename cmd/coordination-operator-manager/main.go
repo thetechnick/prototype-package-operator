@@ -16,8 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	coordinationapis "github.com/thetechnick/package-operator/apis"
-	"github.com/thetechnick/package-operator/internal/coordination/adoption"
-	"github.com/thetechnick/package-operator/internal/coordination/handover"
+	"github.com/thetechnick/package-operator/internal/controllers/coordination/adoption"
+	"github.com/thetechnick/package-operator/internal/controllers/coordination/handover"
 )
 
 var (
