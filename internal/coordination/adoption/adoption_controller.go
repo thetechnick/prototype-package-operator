@@ -10,9 +10,9 @@ import (
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
+	"github.com/thetechnick/package-operator/internal/coordination"
 	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
 )
 
@@ -24,10 +24,6 @@ type operandPtr[O any] interface {
 	client.Object
 	*O
 }
-
-const (
-	cacheFinalizer = "coordination.thetechnick.ninja/cache"
-)
 
 // Generic reconciler for both Adoption and ClusterAdoption objects.
 // An adoption controller ensures selected objects always have a specific label set.
@@ -148,38 +144,22 @@ func (c *GenericAdoptionController[T, O]) newOperand() T {
 func (c *GenericAdoptionController[T, O]) handleDeletion(
 	ctx context.Context, adoption T,
 ) error {
-	if controllerutil.ContainsFinalizer(adoption, cacheFinalizer) {
-		controllerutil.RemoveFinalizer(adoption, cacheFinalizer)
-
-		if err := c.client.Update(ctx, adoption); err != nil {
-			return fmt.Errorf("removing finalizer: %w", err)
-		}
-	}
-
-	if err := c.dw.Free(adoption); err != nil {
-		return fmt.Errorf("free cache: %w", err)
-	}
-	return nil
+	return coordination.HandleCommonDeletion(ctx, adoption, c.client, c.dw)
 }
 
 // ensures the cache finalizer is set on the given object
 func (c *GenericAdoptionController[T, O]) ensureCacheFinalizer(
-	ctx context.Context, adoption T) error {
-	if !controllerutil.ContainsFinalizer(
-		adoption, cacheFinalizer) {
-		controllerutil.AddFinalizer(adoption, cacheFinalizer)
-		if err := c.client.Update(ctx, adoption); err != nil {
-			return fmt.Errorf("adding finalizer: %w", err)
-		}
-	}
-	return nil
+	ctx context.Context, adoption T,
+) error {
+	return coordination.EnsureCommonFinalizer(ctx, adoption, c.client)
 }
 
 // ensures the cache is watching the targetAPI
 func (c *GenericAdoptionController[T, O]) ensureWatch(
 	ctx context.Context, adoption T,
 ) error {
-	gvk, objType, _ := unstructuredFromTargetAPI(getTargetAPI(adoption))
+	gvk, objType, _ := coordination.UnstructuredFromTargetAPI(
+		getTargetAPI(adoption))
 
 	if err := c.dw.Watch(adoption, objType); err != nil {
 		return fmt.Errorf("watching %s: %w", gvk, err)

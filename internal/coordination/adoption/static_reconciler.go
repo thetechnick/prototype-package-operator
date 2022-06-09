@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
+	"github.com/thetechnick/package-operator/internal/coordination"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -28,7 +29,7 @@ func (r *StaticAdoptionReconciler[T, O]) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	gvk, _, objListType := unstructuredFromTargetAPI(getTargetAPI(adoption))
+	gvk, _, objListType := coordination.UnstructuredFromTargetAPI(getTargetAPI(adoption))
 
 	// List all the things not yet labeled
 	if err := r.client.List(

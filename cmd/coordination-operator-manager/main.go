@@ -17,7 +17,7 @@ import (
 
 	coordinationapis "github.com/thetechnick/package-operator/apis"
 	"github.com/thetechnick/package-operator/internal/coordination/adoption"
-	"github.com/thetechnick/package-operator/internal/coordination/controller"
+	"github.com/thetechnick/package-operator/internal/coordination/handover"
 )
 
 var (
@@ -108,24 +108,18 @@ func main() {
 		}
 	}
 
-	if err = (&controller.HandoverReconciler{
-		Client:          mgr.GetClient(),
-		DynamicClient:   dynamicClient,
-		DiscoveryClient: discoveryClient,
-		Log:             ctrl.Log.WithName("controllers").WithName("Handover"),
-		Scheme:          mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	// Handover
+	if err = (handover.NewHandoverController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("Handover"),
+		mgr.GetScheme(), dynamicClient, discoveryClient,
+	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Handover")
 		os.Exit(1)
 	}
-
-	if err = (&controller.ClusterHandoverReconciler{
-		Client:          mgr.GetClient(),
-		DynamicClient:   dynamicClient,
-		DiscoveryClient: discoveryClient,
-		Log:             ctrl.Log.WithName("controllers").WithName("ClusterHandover"),
-		Scheme:          mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	if err = (handover.NewClusterHandoverController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ClusterHandover"),
+		mgr.GetScheme(), dynamicClient, discoveryClient,
+	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterHandover")
 		os.Exit(1)
 	}
