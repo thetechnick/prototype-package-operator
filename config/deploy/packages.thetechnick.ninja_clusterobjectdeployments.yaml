@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.0-beta.0.0.20210504224115-9cd8c2840e84
   creationTimestamp: null
-  name: clusterpackagedeployments.packages.thetechnick.ninja
+  name: clusterobjectdeployments.packages.thetechnick.ninja
 spec:
   group: packages.thetechnick.ninja
   names:
-    kind: ClusterPackageDeployment
-    listKind: ClusterPackageDeploymentList
-    plural: clusterpackagedeployments
-    singular: clusterpackagedeployment
+    kind: ClusterObjectDeployment
+    listKind: ClusterObjectDeploymentList
+    plural: clusterobjectdeployments
+    singular: clusterobjectdeployment
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterPackageDeployment is the Schema for the ClusterPackageDeployments
+        description: ClusterObjectDeployment is the Schema for the ClusterObjectDeployments
           API
         properties:
           apiVersion:
@@ -42,16 +42,16 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterPackageDeploymentSpec defines the desired state of
-              a ClusterPackageDeployment.
+            description: ClusterObjectDeploymentSpec defines the desired state of
+              a ClusterObjectDeployment.
             properties:
               revisionHistoryLimit:
                 default: 5
-                description: Number of old revisions in the form of archived PackageSets
+                description: Number of old revisions in the form of archived ObjectSets
                   to keep.
                 type: integer
               selector:
-                description: Selector targets PackageSets managed by this Deployment.
+                description: Selector targets ObjectSets managed by this Deployment.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -95,7 +95,7 @@ spec:
                     type: object
                 type: object
               template:
-                description: Template to create new PackageSets from.
+                description: Template to create new ObjectSets from.
                 properties:
                   metadata:
                     description: Common Object Metadata.
@@ -118,7 +118,7 @@ spec:
                         type: string
                     type: object
                   spec:
-                    description: PackageSet specification.
+                    description: ObjectSet specification.
                     properties:
                       dependencies:
                         items:
@@ -148,12 +148,12 @@ spec:
                           type: object
                         type: array
                       phases:
-                        description: Reconcile phase configuration for a PackageSet.
+                        description: Reconcile phase configuration for a ObjectSet.
                           Objects in each phase will be reconciled in order and checked
                           with given ReadinessProbes before continuing with the next
                           phase.
                         items:
-                          description: Package reconcile phase. Packages are reconciled
+                          description: ObjectSet reconcile phase.
                           properties:
                             name:
                               description: Name of the reconcile phase.
@@ -161,7 +161,7 @@ spec:
                             objects:
                               description: Objects belonging to this phase.
                               items:
-                                description: An object that is part of a package.
+                                description: An object that is part of an ObjectSet.
                                 properties:
                                   object:
                                     type: object
@@ -182,8 +182,8 @@ spec:
                           to be considered Available. Failing probes will prevent
                           the reconcilation of objects in later phases.
                         items:
-                          description: Package probes define how packages are checked
-                            for their status.
+                          description: ObjectSetProbe define how ObjectSets check
+                            their children for their status.
                           properties:
                             probes:
                               description: Probe configuration parameters.
@@ -274,11 +274,11 @@ spec:
           status:
             default:
               phase: Pending
-            description: ClusterPackageDeploymentStatus defines the observed state
-              of a ClusterPackageDeployment
+            description: ClusterObjectDeploymentStatus defines the observed state
+              of a ClusterObjectDeployment
             properties:
               collisionCount:
-                description: Count of hash collisions of the ClusterPackageDeployment.
+                description: Count of hash collisions of the ClusterObjectDeployment.
                 format: int32
                 type: integer
               conditions:

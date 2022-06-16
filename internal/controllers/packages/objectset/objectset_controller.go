@@ -41,7 +41,7 @@ func NewObjectSetController(
 	discoveryClient *discovery.DiscoveryClient,
 ) *GenericObjectSetController {
 	return NewGenericObjectSetController(
-		packagesv1alpha1.GroupVersion.WithKind("PackageSet"),
+		packagesv1alpha1.GroupVersion.WithKind("ObjectSet"),
 		c, log, scheme, dynamicClient, discoveryClient,
 	)
 }
@@ -52,7 +52,7 @@ func NewClusterObjectSetController(
 	discoveryClient *discovery.DiscoveryClient,
 ) *GenericObjectSetController {
 	return NewGenericObjectSetController(
-		packagesv1alpha1.GroupVersion.WithKind("ClusterPackageSet"),
+		packagesv1alpha1.GroupVersion.WithKind("ClusterObjectSet"),
 		c, log, scheme, dynamicClient, discoveryClient,
 	)
 }
@@ -154,10 +154,10 @@ func (c *GenericObjectSetController) newOperand() genericObjectSet {
 	}
 
 	switch o := obj.(type) {
-	case *packagesv1alpha1.PackageSet:
-		return &GenericObjectSet{PackageSet: *o}
-	case *packagesv1alpha1.ClusterPackageSet:
-		return &GenericClusterObjectSet{ClusterPackageSet: *o}
+	case *packagesv1alpha1.ObjectSet:
+		return &GenericObjectSet{ObjectSet: *o}
+	case *packagesv1alpha1.ClusterObjectSet:
+		return &GenericClusterObjectSet{ClusterObjectSet: *o}
 	}
 	panic("unsupported gvk")
 }

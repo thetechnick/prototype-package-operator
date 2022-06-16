@@ -2,37 +2,85 @@ package v1alpha1
 
 import "k8s.io/apimachinery/pkg/runtime"
 
-// PackageSet specification.
-type PackageSetTemplateSpec struct {
-	// Reconcile phase configuration for a PackageSet.
+// ObjectSet Condition Types
+const (
+	ObjectSetAvailable = "Available"
+	ObjectSetPaused    = "Paused"
+	ObjectSetArchived  = "Archived"
+	// Succeeded condition is only set once,
+	// after a ObjectSet became Available for the first time.
+	ObjectSetSucceeded = "Succeeded"
+)
+
+type ObjectSetPhase string
+
+// Well-known ObjectSet Phases for printing a Status in kubectl,
+// see deprecation notice in ObjectSetStatus for details.
+const (
+	ObjectSetPhasePending           ObjectSetPhase = "Pending"
+	ObjectSetPhaseAvailable         ObjectSetPhase = "Available"
+	ObjectSetPhaseNotReady          ObjectSetPhase = "NotReady"
+	ObjectSetPhaseMissingDependency ObjectSetPhase = "MissingDependency"
+	ObjectSetPhaseArchived          ObjectSetPhase = "Archived"
+)
+
+// ObjectDeployment Condition Types
+const (
+	ObjectDeploymentAvailable   = "Available"
+	ObjectDeploymentProgressing = "Progressing"
+)
+
+type ObjectDeploymentPhase string
+
+// Well-known ObjectDeployment Phases for printing a Status in kubectl,
+// see deprecation notice in ObjectDeploymentStatus for details.
+const (
+	ObjectDeploymentPhasePending     ObjectDeploymentPhase = "Pending"
+	ObjectDeploymentPhaseAvailable   ObjectDeploymentPhase = "Available"
+	ObjectDeploymentPhaseNotReady    ObjectDeploymentPhase = "NotReady"
+	ObjectDeploymentPhaseProgressing ObjectDeploymentPhase = "Progressing"
+)
+
+// ObjectSet specification.
+type ObjectSetTemplateSpec struct {
+	// Reconcile phase configuration for a ObjectSet.
 	// Objects in each phase will be reconciled in order and checked with
 	// given ReadinessProbes before continuing with the next phase.
-	Phases []PackagePhase `json:"phases"`
+	Phases []ObjectSetPhaseSpec `json:"phases"`
 	// Readiness Probes check objects that are part of the package.
 	// All probes need to succeed for a package to be considered Available.
 	// Failing probes will prevent the reconcilation of objects in later phases.
-	ReadinessProbes []PackageProbe      `json:"readinessProbes"`
-	Dependencies    []PackageDependency `json:"dependencies,omitempty"`
+	ReadinessProbes []ObjectSetProbe      `json:"readinessProbes"`
+	Dependencies    []ObjectSetDependency `json:"dependencies,omitempty"`
 }
 
-// Package reconcile phase.
-// Packages are reconciled
-type PackagePhase struct {
+// Specifies that the reconcilation of a specific object should be paused.
+type ObjectSetPausedObject struct {
+	// Object Kind.
+	Kind string `json:"kind"`
+	// Object Group.
+	Group string `json:"group"`
+	// Object Name.
+	Name string `json:"name"`
+}
+
+// ObjectSet reconcile phase.
+type ObjectSetPhaseSpec struct {
 	// Name of the reconcile phase.
 	Name string `json:"name"`
 	// Objects belonging to this phase.
-	Objects []PackageObject `json:"objects"`
+	Objects []ObjectSetObject `json:"objects"`
 }
 
-// An object that is part of a package.
-type PackageObject struct {
+// An object that is part of an ObjectSet.
+type ObjectSetObject struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Object runtime.RawExtension `json:"object"`
 }
 
-// Package probes define how packages are checked for their status.
-type PackageProbe struct {
+// ObjectSetProbe define how ObjectSets check their children for their status.
+type ObjectSetProbe struct {
 	// Probe configuration parameters.
 	Probes []Probe `json:"probes"`
 	// Selector specifies which objects this probe should target.
@@ -95,20 +143,20 @@ type ProbeFieldsEqualSpec struct {
 
 // Package dependency describes prequesites of a package,
 // that need to be met prior to installation.
-type PackageDependency struct {
-	Type          PackageDependencyType               `json:"type"`
-	KubernetesAPI *PackageDependencyKubernetesAPISpec `json:"kubernetesAPI,omitempty"`
+type ObjectSetDependency struct {
+	Type          ObjectSetDependencyType               `json:"type"`
+	KubernetesAPI *ObjectSetDependencyKubernetesAPISpec `json:"kubernetesAPI,omitempty"`
 }
 
-type PackageDependencyType string
+type ObjectSetDependencyType string
 
 const (
 	// Declares to depend on a certain Kubernetes API.
-	PackageDependencyKubernetesAPI PackageDependencyType = "KubernetesAPI"
+	ObjectSetDependencyKubernetesAPI ObjectSetDependencyType = "KubernetesAPI"
 )
 
 // KubernetesAPI Dependency parameters.
-type PackageDependencyKubernetesAPISpec struct {
+type ObjectSetDependencyKubernetesAPISpec struct {
 	// Group of the API.
 	Group string `json:"group,omitempty"`
 	// Version of the API.

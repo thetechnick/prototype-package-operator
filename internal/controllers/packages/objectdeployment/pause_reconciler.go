@@ -40,7 +40,7 @@ func (r *EnsurePauseReconciler) Reconcile(
 	log := controllers.LoggerFromContext(ctx)
 
 	pausedObjects, err := pausedObjectsFromPhases(
-		objectDeployment.GetPackageSetTemplate().Spec.Phases)
+		objectDeployment.GetObjectSetTemplate().Spec.Phases)
 	if err != nil {
 		return ctrl.Result{},
 			fmt.Errorf("getting paused objects from ObjectSet: %w", err)
@@ -62,7 +62,7 @@ func (r *EnsurePauseReconciler) Reconcile(
 		annotations := objectSet.ClientObject().GetAnnotations()
 		if annotations == nil {
 			// TODO: Raise error,
-			// no PackageSet should be missing this annotation.
+			// no ObjectSet should be missing this annotation.
 			// -> ensure in HashReconciler?
 			continue
 		}
@@ -75,7 +75,7 @@ func (r *EnsurePauseReconciler) Reconcile(
 		outdatedObjectSets = append(outdatedObjectSets, objectSet)
 
 		if meta.IsStatusConditionTrue(
-			objectSet.GetConditions(), packagesv1alpha1.PackageSetArchived) {
+			objectSet.GetConditions(), packagesv1alpha1.ObjectSetArchived) {
 			// already archived, no one cares
 			continue
 		}
@@ -96,7 +96,7 @@ func (r *EnsurePauseReconciler) Reconcile(
 			log.Info(
 				"waiting for outdated ObjectSet to be paused",
 				"ObjectSet", client.ObjectKeyFromObject(objectSet.ClientObject()).String())
-			// we can return here, because a status update to the PackageSet will reenqueue this PackageDeployment
+			// we can return here, because a status update to the ObjectSet will reenqueue this ObjectDeployment
 			return ctrl.Result{}, nil
 		}
 	}

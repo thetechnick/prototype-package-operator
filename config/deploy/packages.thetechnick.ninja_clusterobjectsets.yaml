@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.0-beta.0.0.20210504224115-9cd8c2840e84
   creationTimestamp: null
-  name: clusterpackagesets.packages.thetechnick.ninja
+  name: clusterobjectsets.packages.thetechnick.ninja
 spec:
   group: packages.thetechnick.ninja
   names:
-    kind: ClusterPackageSet
-    listKind: ClusterPackageSetList
-    plural: clusterpackagesets
-    singular: clusterpackageset
+    kind: ClusterObjectSet
+    listKind: ClusterObjectSetList
+    plural: clusterobjectsets
+    singular: clusterobjectset
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterPackageSet is the Schema for the ClusterPackageSets API
+        description: ClusterObjectSet is the Schema for the ClusterObjectSets API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -41,7 +41,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterPackageSetSpec defines the desired state of a ClusterPackageSet.
+            description: ClusterObjectSetSpec defines the desired state of a ClusterObjectSet.
             properties:
               archived:
                 description: Archived will delete all unpaused objects and remove
@@ -75,7 +75,7 @@ spec:
                   type: object
                 type: array
               paused:
-                description: Paused disables reconcilation of the ClusterPackageSet,
+                description: Paused disables reconcilation of the ClusterObjectSet,
                   only Status updates will be propagated.
                 type: boolean
               pausedFor:
@@ -100,11 +100,11 @@ spec:
                   type: object
                 type: array
               phases:
-                description: Reconcile phase configuration for a PackageSet. Objects
+                description: Reconcile phase configuration for a ObjectSet. Objects
                   in each phase will be reconciled in order and checked with given
                   ReadinessProbes before continuing with the next phase.
                 items:
-                  description: Package reconcile phase. Packages are reconciled
+                  description: ObjectSet reconcile phase.
                   properties:
                     name:
                       description: Name of the reconcile phase.
@@ -112,7 +112,7 @@ spec:
                     objects:
                       description: Objects belonging to this phase.
                       items:
-                        description: An object that is part of a package.
+                        description: An object that is part of an ObjectSet.
                         properties:
                           object:
                             type: object
@@ -133,8 +133,8 @@ spec:
                   Failing probes will prevent the reconcilation of objects in later
                   phases.
                 items:
-                  description: Package probes define how packages are checked for
-                    their status.
+                  description: ObjectSetProbe define how ObjectSets check their children
+                    for their status.
                   properties:
                     probes:
                       description: Probe configuration parameters.
@@ -216,7 +216,7 @@ spec:
           status:
             default:
               phase: Pending
-            description: ClusterPackageSetStatus defines the observed state of a ClusterPackageSet
+            description: ClusterObjectSetStatus defines the observed state of a ClusterObjectSet
             properties:
               conditions:
                 description: Conditions is a list of status conditions ths object

@@ -1,6 +1,6 @@
 package packages
 
 const (
-	CacheFinalizer     = "packages.thetechnick.ninja/package-set-cache"
-	PackageSetLabelKey = "packages.thetechnick.ninja/package-set"
+	CacheFinalizer    = "packages.thetechnick.ninja/object-set-cache"
+	ObjectSetLabelKey = "packages.thetechnick.ninja/object-set"
 )

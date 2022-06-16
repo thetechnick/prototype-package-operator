@@ -4,8 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ClusterObjectDeploymentSpec defines the desired state of a ClusterObjectDeployment.
-type ClusterObjectDeploymentSpec struct {
+// ObjectDeploymentSpec defines the desired state of a ObjectDeployment.
+type ObjectDeploymentSpec struct {
 	// Number of old revisions in the form of archived ObjectSets to keep.
 	// +kubebuilder:default=5
 	RevisionHistoryLimit *int `json:"revisionHistoryLimit,omitempty"`
@@ -15,8 +15,16 @@ type ClusterObjectDeploymentSpec struct {
 	Template ObjectSetTemplate `json:"template"`
 }
 
-// ClusterObjectDeploymentStatus defines the observed state of a ClusterObjectDeployment
-type ClusterObjectDeploymentStatus struct {
+// ObjectSetTemplate describes the template to create new ObjectSets from.
+type ObjectSetTemplate struct {
+	// Common Object Metadata.
+	Metadata metav1.ObjectMeta `json:"metadata"`
+	// ObjectSet specification.
+	Spec ObjectSetTemplateSpec `json:"spec"`
+}
+
+// ObjectDeploymentStatus defines the observed state of a ObjectDeployment
+type ObjectDeploymentStatus struct {
 	// The most recent generation observed by the controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions is a list of status conditions ths object is in.
@@ -25,35 +33,34 @@ type ClusterObjectDeploymentStatus struct {
 	// it will go away as soon as kubectl can print conditions!
 	// Human readable status - please use .Conditions from code
 	Phase ObjectDeploymentPhase `json:"phase,omitempty"`
-	// Count of hash collisions of the ClusterObjectDeployment.
+	// Count of hash collisions of the ObjectDeployment.
 	CollisionCount *int32 `json:"collisionCount,omitempty"`
 	// Computed TemplateHash.
 	TemplateHash string `json:"templateHash,omitempty"`
 }
 
-// ClusterObjectDeployment is the Schema for the ClusterObjectDeployments API
+// ObjectDeployment is the Schema for the ObjectDeployments API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-type ClusterObjectDeployment struct {
+type ObjectDeployment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ClusterObjectDeploymentSpec `json:"spec,omitempty"`
+	Spec ObjectDeploymentSpec `json:"spec,omitempty"`
 	// +kubebuilder:default={phase:Pending}
-	Status ClusterObjectDeploymentStatus `json:"status,omitempty"`
+	Status ObjectDeploymentStatus `json:"status,omitempty"`
 }
 
-// ClusterObjectDeploymentList contains a list of ClusterObjectDeployments
+// ObjectDeploymentList contains a list of ObjectDeployments
 // +kubebuilder:object:root=true
-type ClusterObjectDeploymentList struct {
+type ObjectDeploymentList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterObjectDeployment `json:"items"`
+	Items           []ObjectDeployment `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterObjectDeployment{}, &ClusterObjectDeploymentList{})
+	SchemeBuilder.Register(&ObjectDeployment{}, &ObjectDeploymentList{})
 }

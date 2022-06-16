@@ -31,28 +31,28 @@ func (r *DeprecationReconciler) Reconcile(
 	if currentObjectSet != nil &&
 		meta.IsStatusConditionTrue(
 			currentObjectSet.GetConditions(),
-			packagesv1alpha1.PackageSetAvailable,
+			packagesv1alpha1.ObjectSetAvailable,
 		) {
-		// all old PackageSets are ready for cleanup,
+		// all old ObjectSets are ready for cleanup,
 		// because we progressed to a newer version.
 		objectSetsForCleanup = outdatedObjectSets
 		objectDeploymentAvailable = true
 
 		// We are also no longer progressing, because the latest version is available
 		meta.SetStatusCondition(objectDeployment.GetConditions(), metav1.Condition{
-			Type:               packagesv1alpha1.ClusterPackageDeploymentProgressing,
+			Type:               packagesv1alpha1.ObjectDeploymentProgressing,
 			Status:             metav1.ConditionFalse,
 			Reason:             "Idle",
 			Message:            "Update concluded.",
 			ObservedGeneration: objectDeployment.ClientObject().GetGeneration(),
 		})
 	} else {
-		// The latest PackageSet is not Available,
+		// The latest ObjectSet is not Available,
 		// but that's Ok, if an earlier one is still up and running.
 		for _, outdatedObjectSet := range outdatedObjectSets {
 			availableCond := meta.FindStatusCondition(
 				outdatedObjectSet.GetConditions(),
-				packagesv1alpha1.PackageSetAvailable,
+				packagesv1alpha1.ObjectSetAvailable,
 			)
 			if availableCond != nil &&
 				availableCond.Status == metav1.ConditionTrue &&
@@ -69,10 +69,10 @@ func (r *DeprecationReconciler) Reconcile(
 				objectSetsForCleanup, outdatedObjectSet)
 		}
 
-		// This also means that we are progressing to a new PackageSet,
+		// This also means that we are progressing to a new ObjectSet,
 		// so better report that
 		meta.SetStatusCondition(objectDeployment.GetConditions(), metav1.Condition{
-			Type:               packagesv1alpha1.PackageDeploymentProgressing,
+			Type:               packagesv1alpha1.ObjectDeploymentProgressing,
 			Status:             metav1.ConditionTrue,
 			Reason:             "Progressing",
 			Message:            "Progressing to a new ObjectSet.",
@@ -88,7 +88,7 @@ func (r *DeprecationReconciler) Reconcile(
 		}
 
 		meta.SetStatusCondition(objectDeployment.GetConditions(), metav1.Condition{
-			Type:               packagesv1alpha1.ClusterPackageDeploymentAvailable,
+			Type:               packagesv1alpha1.ObjectDeploymentAvailable,
 			Status:             metav1.ConditionTrue,
 			Reason:             "Available",
 			Message:            "At least one revision ObjectSet is Available.",
@@ -98,10 +98,10 @@ func (r *DeprecationReconciler) Reconcile(
 	}
 
 	meta.SetStatusCondition(objectDeployment.GetConditions(), metav1.Condition{
-		Type:               packagesv1alpha1.ClusterPackageSetAvailable,
+		Type:               packagesv1alpha1.ObjectSetAvailable,
 		Status:             metav1.ConditionFalse,
-		Reason:             "PackageSetUnready",
-		Message:            "Latest PackageSet is not available.",
+		Reason:             "ObjectSetUnready",
+		Message:            "Latest ObjectSet is not available.",
 		ObservedGeneration: objectDeployment.ClientObject().GetGeneration(),
 	})
 

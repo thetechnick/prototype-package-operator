@@ -73,7 +73,7 @@ func (r *NewRevisionReconciler) Reconcile(
 	if !isOwner ||
 		meta.IsStatusConditionTrue(
 			conflictingObjectSet.GetConditions(),
-			packagesv1alpha1.PackageSetArchived,
+			packagesv1alpha1.ObjectSetArchived,
 		) {
 		// Hash-Collision!
 		cc := objectDeployment.GetStatusCollisionCount()
@@ -101,9 +101,9 @@ func (r *NewRevisionReconciler) newObjectSetFromDeployment(
 	new.SetName(deploy.GetName() + "-" + templateHash)
 	new.SetNamespace(deploy.GetNamespace())
 	new.SetAnnotations(deploy.GetAnnotations())
-	new.SetLabels(objectDeployment.GetPackageSetTemplate().Metadata.Labels)
+	new.SetLabels(objectDeployment.GetObjectSetTemplate().Metadata.Labels)
 	newObjectSet.SetTemplateSpec(
-		objectDeployment.GetPackageSetTemplate().Spec)
+		objectDeployment.GetObjectSetTemplate().Spec)
 
 	if new.GetAnnotations() == nil {
 		new.SetAnnotations(map[string]string{})
@@ -123,8 +123,8 @@ func latestRevision(objectSets []genericObjectSet) (int, error) {
 	if len(objectSets) == 0 {
 		return 0, nil
 	}
-	latestPackageSet := objectSets[len(objectSets)-1]
-	annotation := latestPackageSet.ClientObject().GetAnnotations()[objectSetRevisionAnnotation]
+	latestObjectSet := objectSets[len(objectSets)-1]
+	annotation := latestObjectSet.ClientObject().GetAnnotations()[objectSetRevisionAnnotation]
 	if len(annotation) == 0 {
 		return 0, nil
 	}

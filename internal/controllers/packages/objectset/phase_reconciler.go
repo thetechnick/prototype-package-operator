@@ -54,14 +54,14 @@ func (r *ObjectSetPhaseReconciler) Reconcile(
 func (r *ObjectSetPhaseReconciler) reconcilePhase(
 	ctx context.Context,
 	objectSet genericObjectSet,
-	phase *packagesv1alpha1.PackagePhase,
+	phase *packagesv1alpha1.ObjectSetPhaseSpec,
 	probe internalprobe.Interface,
 ) (stop bool, err error) {
 	var failedProbes []string
 
 	// Reconcile objects in phase
 	for _, phaseObject := range phase.Objects {
-		obj, err := unstructuredFromPackageObject(&phaseObject)
+		obj, err := unstructuredFromObjectObject(&phaseObject)
 		if err != nil {
 			return false, err
 		}
@@ -77,21 +77,21 @@ func (r *ObjectSetPhaseReconciler) reconcilePhase(
 	}
 
 	if len(failedProbes) == 0 {
-		if !meta.IsStatusConditionTrue(*objectSet.GetConditions(), packagesv1alpha1.PackageSetSucceeded) {
+		if !meta.IsStatusConditionTrue(*objectSet.GetConditions(), packagesv1alpha1.ObjectSetSucceeded) {
 			meta.SetStatusCondition(objectSet.GetConditions(), metav1.Condition{
-				Type:    packagesv1alpha1.PackageSetSucceeded,
+				Type:    packagesv1alpha1.ObjectSetSucceeded,
 				Status:  metav1.ConditionTrue,
 				Reason:  "AvailableOnce",
-				Message: "Package was available once and passed all probes.",
+				Message: "Object was available once and passed all probes.",
 			})
 		}
 
-		meta.RemoveStatusCondition(objectSet.GetConditions(), packagesv1alpha1.PackageSetArchived)
+		meta.RemoveStatusCondition(objectSet.GetConditions(), packagesv1alpha1.ObjectSetArchived)
 		meta.SetStatusCondition(objectSet.GetConditions(), metav1.Condition{
-			Type:               packagesv1alpha1.PackageSetAvailable,
+			Type:               packagesv1alpha1.ObjectSetAvailable,
 			Status:             metav1.ConditionTrue,
 			Reason:             "Available",
-			Message:            "Package is available and passes all probes.",
+			Message:            "Object is available and passes all probes.",
 			ObservedGeneration: objectSet.ClientObject().GetGeneration(),
 		})
 
@@ -99,7 +99,7 @@ func (r *ObjectSetPhaseReconciler) reconcilePhase(
 	}
 
 	meta.SetStatusCondition(objectSet.GetConditions(), metav1.Condition{
-		Type:               packagesv1alpha1.PackageSetAvailable,
+		Type:               packagesv1alpha1.ObjectSetAvailable,
 		Status:             metav1.ConditionFalse,
 		Reason:             "ProbeFailure",
 		Message:            fmt.Sprintf("Phase %q failed: %s", phase.Name, strings.Join(failedProbes, ", ")),
@@ -120,7 +120,7 @@ func (r *ObjectSetPhaseReconciler) reconcileObject(
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	labels[packages.PackageSetLabelKey] = strings.Replace(client.ObjectKeyFromObject(objectSet.ClientObject()).String(), "/", "-", -1)
+	labels[packages.ObjectSetLabelKey] = strings.Replace(client.ObjectKeyFromObject(objectSet.ClientObject()).String(), "/", "-", -1)
 	obj.SetLabels(labels)
 
 	// Force namespace to this one
@@ -164,7 +164,7 @@ func (r *ObjectSetPhaseReconciler) reconcileObject(
 			break
 		}
 	}
-	// Let's take over ownership from the other PackageSet.
+	// Let's take over ownership from the other ObjectSet.
 	var newOwnerRefs []metav1.OwnerReference
 	for _, ownerRef := range currentObj.GetOwnerReferences() {
 		ownerRef.Controller = nil
@@ -211,7 +211,7 @@ func (r *ObjectSetPhaseReconciler) reconcileObject(
 }
 
 func parseProbes(
-	packageProbes []packagesv1alpha1.PackageProbe,
+	packageProbes []packagesv1alpha1.ObjectSetProbe,
 ) internalprobe.Interface {
 	var probes internalprobe.ProbeList
 	for _, packageProbe := range packageProbes {

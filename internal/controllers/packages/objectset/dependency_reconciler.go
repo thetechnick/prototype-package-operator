@@ -57,7 +57,7 @@ func (r *ObjectSetDependencyReconciler) Reconcile(
 	conditions := objectSet.GetConditions()
 
 	meta.SetStatusCondition(conditions, metav1.Condition{
-		Type:               packagesv1alpha1.PackageSetAvailable,
+		Type:               packagesv1alpha1.ObjectSetAvailable,
 		Status:             metav1.ConditionFalse,
 		Reason:             "MissingDependency",
 		Message:            fmt.Sprintf("Missing objects in kubernetes API: %s", strings.Join(missingGKV, ", ")),

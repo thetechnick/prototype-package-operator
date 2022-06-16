@@ -12,20 +12,12 @@ type genericObjectDeployment interface {
 	UpdatePhase()
 	GetConditions() *[]metav1.Condition
 	GetSelector() metav1.LabelSelector
-	GetPackageSetTemplate() packagesv1alpha1.PackageSetTemplate
+	GetObjectSetTemplate() packagesv1alpha1.ObjectSetTemplate
 	GetRevisionHistoryLimit() *int
 	SetStatusCollisionCount(*int32)
 	GetStatusCollisionCount() *int32
 	GetStatusTemplateHash() string
 	SetStatusTemplateHash(templateHash string)
-	// GetPhases() []packagesv1alpha1.PackagePhase
-	// IsArchived() bool
-	// IsPaused() bool
-	// IsObjectPaused(obj client.Object) bool
-	// GetPausedFor() []packagesv1alpha1.PackagePausedObject
-	// SetStatusPausedFor(pausedFor []packagesv1alpha1.PackagePausedObject)
-	// GetDependencies() []packagesv1alpha1.PackageDependency
-	// GetReadinessProbes() []packagesv1alpha1.PackageProbe
 }
 
 var (
@@ -34,7 +26,7 @@ var (
 )
 
 type GenericObjectDeployment struct {
-	packagesv1alpha1.PackageDeployment
+	packagesv1alpha1.ObjectDeployment
 }
 
 func (a *GenericObjectDeployment) GetRevisionHistoryLimit() *int {
@@ -50,25 +42,25 @@ func (a *GenericObjectDeployment) GetStatusCollisionCount() *int32 {
 }
 
 func (a *GenericObjectDeployment) ClientObject() client.Object {
-	return &a.PackageDeployment
+	return &a.ObjectDeployment
 }
 
 func (a *GenericObjectDeployment) UpdatePhase() {
 	availableCond := meta.FindStatusCondition(
 		a.Status.Conditions,
-		packagesv1alpha1.PackageDeploymentAvailable)
+		packagesv1alpha1.ObjectDeploymentAvailable)
 
 	if availableCond != nil {
 		if availableCond.Status == metav1.ConditionTrue {
-			a.Status.Phase = packagesv1alpha1.PackageDeploymentPhaseAvailable
+			a.Status.Phase = packagesv1alpha1.ObjectDeploymentPhaseAvailable
 			return
 		}
 		if availableCond.Status == metav1.ConditionFalse {
-			a.Status.Phase = packagesv1alpha1.PackageDeploymentPhaseNotReady
+			a.Status.Phase = packagesv1alpha1.ObjectDeploymentPhaseNotReady
 			return
 		}
 	}
-	a.Status.Phase = packagesv1alpha1.PackageDeploymentPhaseProgressing
+	a.Status.Phase = packagesv1alpha1.ObjectDeploymentPhaseProgressing
 }
 
 func (a *GenericObjectDeployment) GetConditions() *[]metav1.Condition {
@@ -79,7 +71,7 @@ func (a *GenericObjectDeployment) GetSelector() metav1.LabelSelector {
 	return a.Spec.Selector
 }
 
-func (a *GenericObjectDeployment) GetPackageSetTemplate() packagesv1alpha1.PackageSetTemplate {
+func (a *GenericObjectDeployment) GetObjectSetTemplate() packagesv1alpha1.ObjectSetTemplate {
 	return a.Spec.Template
 }
 
@@ -92,7 +84,7 @@ func (a *GenericObjectDeployment) GetStatusTemplateHash() string {
 }
 
 type GenericClusterObjectDeployment struct {
-	packagesv1alpha1.ClusterPackageDeployment
+	packagesv1alpha1.ClusterObjectDeployment
 }
 
 func (a *GenericClusterObjectDeployment) GetRevisionHistoryLimit() *int {
@@ -104,25 +96,25 @@ func (a *GenericClusterObjectDeployment) SetStatusCollisionCount(cc *int32) {
 }
 
 func (a *GenericClusterObjectDeployment) ClientObject() client.Object {
-	return &a.ClusterPackageDeployment
+	return &a.ClusterObjectDeployment
 }
 
 func (a *GenericClusterObjectDeployment) UpdatePhase() {
 	availableCond := meta.FindStatusCondition(
 		a.Status.Conditions,
-		packagesv1alpha1.PackageDeploymentAvailable)
+		packagesv1alpha1.ObjectDeploymentAvailable)
 
 	if availableCond != nil {
 		if availableCond.Status == metav1.ConditionTrue {
-			a.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentPhaseAvailable
+			a.Status.Phase = packagesv1alpha1.ObjectDeploymentPhaseAvailable
 			return
 		}
 		if availableCond.Status == metav1.ConditionFalse {
-			a.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentPhaseNotReady
+			a.Status.Phase = packagesv1alpha1.ObjectDeploymentPhaseNotReady
 			return
 		}
 	}
-	a.Status.Phase = packagesv1alpha1.ClusterPackageDeploymentPhaseProgressing
+	a.Status.Phase = packagesv1alpha1.ObjectDeploymentPhaseProgressing
 }
 
 func (a *GenericClusterObjectDeployment) GetConditions() *[]metav1.Condition {
@@ -133,7 +125,7 @@ func (a *GenericClusterObjectDeployment) GetSelector() metav1.LabelSelector {
 	return a.Spec.Selector
 }
 
-func (a *GenericClusterObjectDeployment) GetPackageSetTemplate() packagesv1alpha1.PackageSetTemplate {
+func (a *GenericClusterObjectDeployment) GetObjectSetTemplate() packagesv1alpha1.ObjectSetTemplate {
 	return a.Spec.Template
 }
 
@@ -151,50 +143,50 @@ func (a *GenericClusterObjectDeployment) GetStatusTemplateHash() string {
 
 type genericObjectSet interface {
 	ClientObject() client.Object
-	GetTemplateSpec() packagesv1alpha1.PackageSetTemplateSpec
-	SetTemplateSpec(templateSpec packagesv1alpha1.PackageSetTemplateSpec)
-	GetPhases() []packagesv1alpha1.PackagePhase
+	GetTemplateSpec() packagesv1alpha1.ObjectSetTemplateSpec
+	SetTemplateSpec(templateSpec packagesv1alpha1.ObjectSetTemplateSpec)
+	GetPhases() []packagesv1alpha1.ObjectSetPhaseSpec
 	GetConditions() []metav1.Condition
-	SetSpecPausedFor(pausedFor []packagesv1alpha1.PackagePausedObject)
-	GetSpecPausedFor() []packagesv1alpha1.PackagePausedObject
-	GetStatusPausedFor() []packagesv1alpha1.PackagePausedObject
+	SetSpecPausedFor(pausedFor []packagesv1alpha1.ObjectSetPausedObject)
+	GetSpecPausedFor() []packagesv1alpha1.ObjectSetPausedObject
+	GetStatusPausedFor() []packagesv1alpha1.ObjectSetPausedObject
 	SetArchived()
 }
 
 type GenericObjectSet struct {
-	packagesv1alpha1.PackageSet
+	packagesv1alpha1.ObjectSet
 }
 
-func (a *GenericObjectSet) GetTemplateSpec() packagesv1alpha1.PackageSetTemplateSpec {
-	return a.Spec.PackageSetTemplateSpec
+func (a *GenericObjectSet) GetTemplateSpec() packagesv1alpha1.ObjectSetTemplateSpec {
+	return a.Spec.ObjectSetTemplateSpec
 }
 
-func (a *GenericObjectSet) SetTemplateSpec(templateSpec packagesv1alpha1.PackageSetTemplateSpec) {
-	a.Spec.PackageSetTemplateSpec = templateSpec
+func (a *GenericObjectSet) SetTemplateSpec(templateSpec packagesv1alpha1.ObjectSetTemplateSpec) {
+	a.Spec.ObjectSetTemplateSpec = templateSpec
 }
 
 func (a *GenericObjectSet) ClientObject() client.Object {
-	return &a.PackageSet
+	return &a.ObjectSet
 }
 
 func (a *GenericObjectSet) GetConditions() []metav1.Condition {
 	return a.Status.Conditions
 }
 
-func (a *GenericObjectSet) GetPhases() []packagesv1alpha1.PackagePhase {
+func (a *GenericObjectSet) GetPhases() []packagesv1alpha1.ObjectSetPhaseSpec {
 	return a.Spec.Phases
 }
 
 func (a *GenericObjectSet) SetSpecPausedFor(
-	pausedFor []packagesv1alpha1.PackagePausedObject) {
+	pausedFor []packagesv1alpha1.ObjectSetPausedObject) {
 	a.Spec.PausedFor = pausedFor
 }
 
-func (a *GenericObjectSet) GetSpecPausedFor() []packagesv1alpha1.PackagePausedObject {
+func (a *GenericObjectSet) GetSpecPausedFor() []packagesv1alpha1.ObjectSetPausedObject {
 	return a.Spec.PausedFor
 }
 
-func (a *GenericObjectSet) GetStatusPausedFor() []packagesv1alpha1.PackagePausedObject {
+func (a *GenericObjectSet) GetStatusPausedFor() []packagesv1alpha1.ObjectSetPausedObject {
 	return a.Status.PausedFor
 }
 
@@ -203,43 +195,43 @@ func (a *GenericObjectSet) SetArchived() {
 }
 
 type GenericClusterObjectSet struct {
-	packagesv1alpha1.ClusterPackageSet
+	packagesv1alpha1.ClusterObjectSet
 }
 
 func (a *GenericClusterObjectSet) SetArchived() {
 	a.Spec.Archived = true
 }
 
-func (a *GenericClusterObjectSet) GetTemplateSpec() packagesv1alpha1.PackageSetTemplateSpec {
-	return a.Spec.PackageSetTemplateSpec
+func (a *GenericClusterObjectSet) GetTemplateSpec() packagesv1alpha1.ObjectSetTemplateSpec {
+	return a.Spec.ObjectSetTemplateSpec
 }
 
-func (a *GenericClusterObjectSet) SetTemplateSpec(templateSpec packagesv1alpha1.PackageSetTemplateSpec) {
-	a.Spec.PackageSetTemplateSpec = templateSpec
+func (a *GenericClusterObjectSet) SetTemplateSpec(templateSpec packagesv1alpha1.ObjectSetTemplateSpec) {
+	a.Spec.ObjectSetTemplateSpec = templateSpec
 }
 
 func (a *GenericClusterObjectSet) ClientObject() client.Object {
-	return &a.ClusterPackageSet
+	return &a.ClusterObjectSet
 }
 
 func (a *GenericClusterObjectSet) GetConditions() []metav1.Condition {
 	return a.Status.Conditions
 }
 
-func (a *GenericClusterObjectSet) GetPhases() []packagesv1alpha1.PackagePhase {
+func (a *GenericClusterObjectSet) GetPhases() []packagesv1alpha1.ObjectSetPhaseSpec {
 	return a.Spec.Phases
 }
 
 func (a *GenericClusterObjectSet) SetSpecPausedFor(
-	pausedFor []packagesv1alpha1.PackagePausedObject) {
+	pausedFor []packagesv1alpha1.ObjectSetPausedObject) {
 	a.Spec.PausedFor = pausedFor
 }
 
-func (a *GenericClusterObjectSet) GetSpecPausedFor() []packagesv1alpha1.PackagePausedObject {
+func (a *GenericClusterObjectSet) GetSpecPausedFor() []packagesv1alpha1.ObjectSetPausedObject {
 	return a.Spec.PausedFor
 }
 
-func (a *GenericClusterObjectSet) GetStatusPausedFor() []packagesv1alpha1.PackagePausedObject {
+func (a *GenericClusterObjectSet) GetStatusPausedFor() []packagesv1alpha1.ObjectSetPausedObject {
 	return a.Status.PausedFor
 }
 
@@ -254,36 +246,36 @@ var (
 )
 
 type GenericObjectSetList struct {
-	packagesv1alpha1.PackageSetList
+	packagesv1alpha1.ObjectSetList
 }
 
 func (a *GenericObjectSetList) ClientObjectList() client.ObjectList {
-	return &a.PackageSetList
+	return &a.ObjectSetList
 }
 
 func (a *GenericObjectSetList) GetItems() []genericObjectSet {
 	out := make([]genericObjectSet, len(a.Items))
 	for i := range a.Items {
 		out[i] = &GenericObjectSet{
-			PackageSet: a.Items[i],
+			ObjectSet: a.Items[i],
 		}
 	}
 	return out
 }
 
 type GenericClusterObjectSetList struct {
-	packagesv1alpha1.ClusterPackageSetList
+	packagesv1alpha1.ClusterObjectSetList
 }
 
 func (a *GenericClusterObjectSetList) ClientObjectList() client.ObjectList {
-	return &a.ClusterPackageSetList
+	return &a.ClusterObjectSetList
 }
 
 func (a *GenericClusterObjectSetList) GetItems() []genericObjectSet {
 	out := make([]genericObjectSet, len(a.Items))
 	for i := range a.Items {
 		out[i] = &GenericClusterObjectSet{
-			ClusterPackageSet: a.Items[i],
+			ClusterObjectSet: a.Items[i],
 		}
 	}
 	return out

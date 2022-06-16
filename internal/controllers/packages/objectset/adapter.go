@@ -16,14 +16,14 @@ type genericObjectSet interface {
 	ClientObject() client.Object
 	UpdatePhase()
 	GetConditions() *[]metav1.Condition
-	GetPhases() []packagesv1alpha1.PackagePhase
+	GetPhases() []packagesv1alpha1.ObjectSetPhaseSpec
 	IsArchived() bool
 	IsPaused() bool
 	IsObjectPaused(obj client.Object) bool
-	GetPausedFor() []packagesv1alpha1.PackagePausedObject
-	SetStatusPausedFor(pausedFor []packagesv1alpha1.PackagePausedObject)
-	GetDependencies() []packagesv1alpha1.PackageDependency
-	GetReadinessProbes() []packagesv1alpha1.PackageProbe
+	GetPausedFor() []packagesv1alpha1.ObjectSetPausedObject
+	SetStatusPausedFor(pausedFor []packagesv1alpha1.ObjectSetPausedObject)
+	GetDependencies() []packagesv1alpha1.ObjectSetDependency
+	GetReadinessProbes() []packagesv1alpha1.ObjectSetProbe
 }
 
 var (
@@ -32,31 +32,31 @@ var (
 )
 
 type GenericObjectSet struct {
-	packagesv1alpha1.PackageSet
+	packagesv1alpha1.ObjectSet
 }
 
-func (a *GenericObjectSet) GetReadinessProbes() []packagesv1alpha1.PackageProbe {
+func (a *GenericObjectSet) GetReadinessProbes() []packagesv1alpha1.ObjectSetProbe {
 	return a.Spec.ReadinessProbes
 }
 
-func (a *GenericObjectSet) GetDependencies() []packagesv1alpha1.PackageDependency {
+func (a *GenericObjectSet) GetDependencies() []packagesv1alpha1.ObjectSetDependency {
 	return a.Spec.Dependencies
 }
 
 func (a *GenericObjectSet) ClientObject() client.Object {
-	return &a.PackageSet
+	return &a.ObjectSet
 }
 
 func (a *GenericObjectSet) IsPaused() bool {
 	return a.Spec.Paused
 }
 
-func (a *GenericObjectSet) GetPausedFor() []packagesv1alpha1.PackagePausedObject {
+func (a *GenericObjectSet) GetPausedFor() []packagesv1alpha1.ObjectSetPausedObject {
 	return a.Spec.PausedFor
 }
 
 func (a *GenericObjectSet) SetStatusPausedFor(
-	pausedFor []packagesv1alpha1.PackagePausedObject) {
+	pausedFor []packagesv1alpha1.ObjectSetPausedObject) {
 	a.Status.PausedFor = pausedFor
 }
 
@@ -75,35 +75,35 @@ func (a *GenericObjectSet) IsObjectPaused(obj client.Object) bool {
 func (a *GenericObjectSet) UpdatePhase() {
 	if meta.IsStatusConditionTrue(
 		a.Status.Conditions,
-		packagesv1alpha1.PackageSetArchived,
+		packagesv1alpha1.ObjectSetArchived,
 	) {
-		a.Status.Phase = packagesv1alpha1.PackageSetPhaseArchived
+		a.Status.Phase = packagesv1alpha1.ObjectSetPhaseArchived
 		return
 	}
 
 	availableCond := meta.FindStatusCondition(
 		a.Status.Conditions,
-		packagesv1alpha1.PackageSetAvailable,
+		packagesv1alpha1.ObjectSetAvailable,
 	)
 	if availableCond != nil {
 		if availableCond.Status == metav1.ConditionTrue {
-			a.Status.Phase = packagesv1alpha1.PackageSetPhaseAvailable
+			a.Status.Phase = packagesv1alpha1.ObjectSetPhaseAvailable
 			return
 		}
 		if availableCond.Reason == "MissingDependency" {
-			a.Status.Phase = packagesv1alpha1.PackageSetPhaseMissingDependency
+			a.Status.Phase = packagesv1alpha1.ObjectSetPhaseMissingDependency
 			return
 		}
 	}
 
-	a.Status.Phase = packagesv1alpha1.PackageSetPhaseNotReady
+	a.Status.Phase = packagesv1alpha1.ObjectSetPhaseNotReady
 }
 
 func (a *GenericObjectSet) IsArchived() bool {
 	return a.Spec.Archived
 }
 
-func (a *GenericObjectSet) GetPhases() []packagesv1alpha1.PackagePhase {
+func (a *GenericObjectSet) GetPhases() []packagesv1alpha1.ObjectSetPhaseSpec {
 	return a.Spec.Phases
 }
 
@@ -112,53 +112,53 @@ func (a *GenericObjectSet) GetConditions() *[]metav1.Condition {
 }
 
 type GenericClusterObjectSet struct {
-	packagesv1alpha1.ClusterPackageSet
+	packagesv1alpha1.ClusterObjectSet
 }
 
-func (a *GenericClusterObjectSet) GetReadinessProbes() []packagesv1alpha1.PackageProbe {
+func (a *GenericClusterObjectSet) GetReadinessProbes() []packagesv1alpha1.ObjectSetProbe {
 	return a.Spec.ReadinessProbes
 }
 
-func (a *GenericClusterObjectSet) GetDependencies() []packagesv1alpha1.PackageDependency {
+func (a *GenericClusterObjectSet) GetDependencies() []packagesv1alpha1.ObjectSetDependency {
 	return a.Spec.Dependencies
 }
 
 func (a *GenericClusterObjectSet) ClientObject() client.Object {
-	return &a.ClusterPackageSet
+	return &a.ClusterObjectSet
 }
 
 func (a *GenericClusterObjectSet) UpdatePhase() {
 	if meta.IsStatusConditionTrue(
 		a.Status.Conditions,
-		packagesv1alpha1.PackageSetArchived,
+		packagesv1alpha1.ObjectSetArchived,
 	) {
-		a.Status.Phase = packagesv1alpha1.ClusterPackageSetPhaseArchived
+		a.Status.Phase = packagesv1alpha1.ObjectSetPhaseArchived
 		return
 	}
 
 	availableCond := meta.FindStatusCondition(
 		a.Status.Conditions,
-		packagesv1alpha1.PackageSetAvailable,
+		packagesv1alpha1.ObjectSetAvailable,
 	)
 	if availableCond != nil {
 		if availableCond.Status == metav1.ConditionTrue {
-			a.Status.Phase = packagesv1alpha1.ClusterPackageSetPhaseAvailable
+			a.Status.Phase = packagesv1alpha1.ObjectSetPhaseAvailable
 			return
 		}
 		if availableCond.Reason == "MissingDependency" {
-			a.Status.Phase = packagesv1alpha1.ClusterPackageSetPhaseMissingDependency
+			a.Status.Phase = packagesv1alpha1.ObjectSetPhaseMissingDependency
 			return
 		}
 	}
 
-	a.Status.Phase = packagesv1alpha1.ClusterPackageSetPhaseNotReady
+	a.Status.Phase = packagesv1alpha1.ObjectSetPhaseNotReady
 }
 
 func (a *GenericClusterObjectSet) IsPaused() bool {
 	return a.Spec.Paused
 }
 
-func (a *GenericClusterObjectSet) GetPausedFor() []packagesv1alpha1.PackagePausedObject {
+func (a *GenericClusterObjectSet) GetPausedFor() []packagesv1alpha1.ObjectSetPausedObject {
 	return a.Spec.PausedFor
 }
 
@@ -166,7 +166,7 @@ func (a *GenericClusterObjectSet) IsArchived() bool {
 	return a.Spec.Archived
 }
 
-func (a *GenericClusterObjectSet) GetPhases() []packagesv1alpha1.PackagePhase {
+func (a *GenericClusterObjectSet) GetPhases() []packagesv1alpha1.ObjectSetPhaseSpec {
 	return a.Spec.Phases
 }
 
@@ -187,11 +187,11 @@ func (a *GenericClusterObjectSet) IsObjectPaused(obj client.Object) bool {
 }
 
 func (a *GenericClusterObjectSet) SetStatusPausedFor(
-	pausedFor []packagesv1alpha1.PackagePausedObject) {
+	pausedFor []packagesv1alpha1.ObjectSetPausedObject) {
 	a.Status.PausedFor = pausedFor
 }
 
-func pausedObjectMatches(ppo packagesv1alpha1.PackagePausedObject, obj client.Object) bool {
+func pausedObjectMatches(ppo packagesv1alpha1.ObjectSetPausedObject, obj client.Object) bool {
 	gvk := obj.GetObjectKind().GroupVersionKind()
 	if gvk.Group == ppo.Group &&
 		gvk.Kind == ppo.Kind &&
@@ -201,7 +201,7 @@ func pausedObjectMatches(ppo packagesv1alpha1.PackagePausedObject, obj client.Ob
 	return false
 }
 
-func unstructuredFromPackageObject(packageObject *packagesv1alpha1.PackageObject) (*unstructured.Unstructured, error) {
+func unstructuredFromObjectObject(packageObject *packagesv1alpha1.ObjectSetObject) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	if err := yaml.Unmarshal(packageObject.Object.Raw, obj); err != nil {
 		return nil, fmt.Errorf("converting RawExtension into unstructured: %w", err)

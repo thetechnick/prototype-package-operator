@@ -33,7 +33,7 @@ func (r *ArchivedObjectSetReconciler) Reconcile(ctx context.Context, objectSet g
 	// -> Like deletion handling
 	for _, phase := range phases {
 		for _, phaseObject := range phase.Objects {
-			obj, err := unstructuredFromPackageObject(&phaseObject)
+			obj, err := unstructuredFromObjectObject(&phaseObject)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -48,13 +48,13 @@ func (r *ArchivedObjectSetReconciler) Reconcile(ctx context.Context, objectSet g
 	}
 
 	conditions := objectSet.GetConditions()
-	meta.RemoveStatusCondition(conditions, packagesv1alpha1.PackageSetPaused)
-	meta.RemoveStatusCondition(conditions, packagesv1alpha1.PackageSetAvailable)
+	meta.RemoveStatusCondition(conditions, packagesv1alpha1.ObjectSetPaused)
+	meta.RemoveStatusCondition(conditions, packagesv1alpha1.ObjectSetAvailable)
 	meta.SetStatusCondition(conditions, metav1.Condition{
-		Type:               packagesv1alpha1.PackageSetArchived,
+		Type:               packagesv1alpha1.ObjectSetArchived,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Archived",
-		Message:            "PackageSet is archived.",
+		Message:            "ObjectSet is archived.",
 		ObservedGeneration: objectSet.ClientObject().GetGeneration(),
 	})
 	objectSet.SetStatusPausedFor(objectSet.GetPausedFor())

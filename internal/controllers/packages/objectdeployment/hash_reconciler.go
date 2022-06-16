@@ -20,7 +20,7 @@ func (r *HashReconciler) Reconcile(
 	ctx context.Context, objectDeployment genericObjectDeployment,
 ) (ctrl.Result, error) {
 	templateHash := computeHash(
-		objectDeployment.GetPackageSetTemplate(),
+		objectDeployment.GetObjectSetTemplate(),
 		objectDeployment.GetStatusCollisionCount())
 	objectDeployment.SetStatusTemplateHash(templateHash)
 	return ctrl.Result{}, nil
@@ -29,7 +29,7 @@ func (r *HashReconciler) Reconcile(
 // computeHash returns a hash value calculated from pod template and
 // a collisionCount to avoid hash collision. The hash will be safe encoded to
 // avoid bad words.
-func computeHash(template packagesv1alpha1.PackageSetTemplate, collisionCount *int32) string {
+func computeHash(template packagesv1alpha1.ObjectSetTemplate, collisionCount *int32) string {
 	hasher := fnv.New32a()
 	deepHashObject(hasher, template)
 

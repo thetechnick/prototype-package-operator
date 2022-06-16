@@ -38,8 +38,8 @@ func NewObjectDeploymentController(
 	c client.Client, log logr.Logger, scheme *runtime.Scheme,
 ) *GenericObjectDeploymentController {
 	return NewGenericObjectDeploymentController(
-		packagesv1alpha1.GroupVersion.WithKind("PackageDeployment"),
-		packagesv1alpha1.GroupVersion.WithKind("PackageSet"),
+		packagesv1alpha1.GroupVersion.WithKind("ObjectDeployment"),
+		packagesv1alpha1.GroupVersion.WithKind("ObjectSet"),
 		c, log, scheme,
 	)
 }
@@ -48,8 +48,8 @@ func NewClusterObjectDeploymentController(
 	c client.Client, log logr.Logger, scheme *runtime.Scheme,
 ) *GenericObjectDeploymentController {
 	return NewGenericObjectDeploymentController(
-		packagesv1alpha1.GroupVersion.WithKind("ClusterPackageDeployment"),
-		packagesv1alpha1.GroupVersion.WithKind("ClusterPackageSet"),
+		packagesv1alpha1.GroupVersion.WithKind("ClusterObjectDeployment"),
+		packagesv1alpha1.GroupVersion.WithKind("ClusterObjectSet"),
 		c, log, scheme,
 	)
 }
@@ -71,7 +71,7 @@ func NewGenericObjectDeploymentController(
 		&HashReconciler{},
 		&EnsurePauseReconciler{
 			client:                      c,
-			listObjectSetsForDeployment: controller.listPackageSetsByRevision,
+			listObjectSetsForDeployment: controller.listObjectSetsByRevision,
 			reconcilers: []objectSetReconciler{
 				&NewRevisionReconciler{
 					client:       c,
@@ -95,10 +95,10 @@ func (c *GenericObjectDeploymentController) newOperand() genericObjectDeployment
 	}
 
 	switch o := obj.(type) {
-	case *packagesv1alpha1.PackageDeployment:
-		return &GenericObjectDeployment{PackageDeployment: *o}
-	case *packagesv1alpha1.ClusterPackageDeployment:
-		return &GenericClusterObjectDeployment{ClusterPackageDeployment: *o}
+	case *packagesv1alpha1.ObjectDeployment:
+		return &GenericObjectDeployment{ObjectDeployment: *o}
+	case *packagesv1alpha1.ClusterObjectDeployment:
+		return &GenericClusterObjectDeployment{ClusterObjectDeployment: *o}
 	}
 	panic("unsupported gvk")
 }
@@ -109,10 +109,10 @@ func (c *GenericObjectDeploymentController) newOperandChild() genericObjectSet {
 		panic(err)
 	}
 	switch o := obj.(type) {
-	case *packagesv1alpha1.PackageSet:
-		return &GenericObjectSet{PackageSet: *o}
-	case *packagesv1alpha1.ClusterPackageSet:
-		return &GenericClusterObjectSet{ClusterPackageSet: *o}
+	case *packagesv1alpha1.ObjectSet:
+		return &GenericObjectSet{ObjectSet: *o}
+	case *packagesv1alpha1.ClusterObjectSet:
+		return &GenericClusterObjectSet{ClusterObjectSet: *o}
 	}
 	panic("unsupported gvk")
 }
@@ -126,10 +126,10 @@ func (c *GenericObjectDeploymentController) newOperandChildList() genericObjectS
 	}
 
 	switch o := obj.(type) {
-	case *packagesv1alpha1.PackageSetList:
-		return &GenericObjectSetList{PackageSetList: *o}
-	case *packagesv1alpha1.ClusterPackageSetList:
-		return &GenericClusterObjectSetList{ClusterPackageSetList: *o}
+	case *packagesv1alpha1.ObjectSetList:
+		return &GenericObjectSetList{ObjectSetList: *o}
+	case *packagesv1alpha1.ClusterObjectSetList:
+		return &GenericClusterObjectSetList{ClusterObjectSetList: *o}
 	}
 	panic("unsupported gvk")
 }
@@ -173,7 +173,7 @@ func (c *GenericObjectDeploymentController) Reconcile(
 	return res, c.client.Status().Update(ctx, objectDeployment.ClientObject())
 }
 
-func (c *GenericObjectDeploymentController) listPackageSetsByRevision(
+func (c *GenericObjectDeploymentController) listObjectSetsByRevision(
 	ctx context.Context,
 	objectDeployment genericObjectDeployment,
 ) ([]genericObjectSet, error) {
@@ -191,7 +191,7 @@ func (c *GenericObjectDeploymentController) listPackageSetsByRevision(
 		},
 		client.InNamespace(objectDeployment.ClientObject().GetNamespace()),
 	); err != nil {
-		return nil, fmt.Errorf("listing PackageSets: %w", err)
+		return nil, fmt.Errorf("listing ObjectSets: %w", err)
 	}
 
 	items := objectSetList.GetItems()
