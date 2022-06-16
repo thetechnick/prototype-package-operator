@@ -3,6 +3,7 @@ package adoption
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -93,6 +94,7 @@ func (c *GenericAdoptionController) SetupWithManager(
 		Watches(c.dw, &dynamicwatcher.EnqueueWatchingObjects{
 			WatcherType:      t,
 			WatcherRefGetter: c.dw,
+			ClusterScoped:    strings.HasPrefix(c.gvk.Kind, "Cluster"),
 		}).
 		Complete(c)
 }
@@ -100,6 +102,11 @@ func (c *GenericAdoptionController) SetupWithManager(
 func (c *GenericAdoptionController) Reconcile(
 	ctx context.Context, req ctrl.Request,
 ) (ctrl.Result, error) {
+	log := c.log.WithValues(c.gvk.Kind, req.NamespacedName.String())
+	ctx = controllers.ContextWithLogger(ctx, log)
+
+	defer log.Info("reconciled")
+
 	adoption := c.newOperand()
 	if err := c.client.Get(
 		ctx, req.NamespacedName, adoption.ClientObject()); err != nil {

@@ -25,8 +25,6 @@ type ObjectSetTemplate struct {
 
 // ObjectDeploymentStatus defines the observed state of a ObjectDeployment
 type ObjectDeploymentStatus struct {
-	// The most recent generation observed by the controller.
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions is a list of status conditions ths object is in.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// DEPRECATED: This field is not part of any API contract
@@ -38,6 +36,23 @@ type ObjectDeploymentStatus struct {
 	// Computed TemplateHash.
 	TemplateHash string `json:"templateHash,omitempty"`
 }
+
+// ObjectDeployment Condition Types
+const (
+	ObjectDeploymentAvailable   = "Available"
+	ObjectDeploymentProgressing = "Progressing"
+)
+
+type ObjectDeploymentPhase string
+
+// Well-known ObjectDeployment Phases for printing a Status in kubectl,
+// see deprecation notice in ObjectDeploymentStatus for details.
+const (
+	ObjectDeploymentPhasePending     ObjectDeploymentPhase = "Pending"
+	ObjectDeploymentPhaseAvailable   ObjectDeploymentPhase = "Available"
+	ObjectDeploymentPhaseNotReady    ObjectDeploymentPhase = "NotReady"
+	ObjectDeploymentPhaseProgressing ObjectDeploymentPhase = "Progressing"
+)
 
 // ObjectDeployment is the Schema for the ObjectDeployments API
 // +kubebuilder:object:root=true

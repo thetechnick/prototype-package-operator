@@ -3,6 +3,7 @@ package handover
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -80,8 +81,10 @@ func NewGenericHandoverController(
 
 func (c *GenericHandoverController) Reconcile(
 	ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := c.log.WithValues("ClusterHandover", req.NamespacedName.String())
+	log := c.log.WithValues(c.gvk.Kind, req.NamespacedName.String())
 	ctx = controllers.ContextWithLogger(ctx, log)
+
+	defer log.Info("reconciled")
 
 	handover := c.newOperand()
 	if err := c.client.Get(ctx, req.NamespacedName, handover.ClientObject()); err != nil {
@@ -129,6 +132,7 @@ func (c *GenericHandoverController) SetupWithManager(
 		Watches(c.dw, &dynamicwatcher.EnqueueWatchingObjects{
 			WatcherType:      t,
 			WatcherRefGetter: c.dw,
+			ClusterScoped:    strings.HasPrefix(c.gvk.Kind, "Cluster"),
 		}).
 		Complete(c)
 }

@@ -6,33 +6,29 @@ import (
 
 // ClusterObjectSetSpec defines the desired state of a ClusterObjectSet.
 type ClusterObjectSetSpec struct {
-	// Archived will delete all unpaused objects and remove o
-	Archived bool `json:"archived,omitempty"`
-	// Paused disables reconcilation of the ClusterObjectSet,
-	// only Status updates will be propagated.
-	Paused bool `json:"paused,omitempty"`
-	// Pause reconcilation of specific objects.
+	// Specifies the lifecycle state of the ObjectSet.
+	// +kubebuilder:default="Active"
+	// +kubebuilder:validation:Enum=Active;Paused;Archived
+	LifecycleState ObjectSetLifecycleState `json:"lifecycleState,omitempty"`
+	// Pause reconcilation of specific objects, while still reporting status.
 	PausedFor []ObjectSetPausedObject `json:"pausedFor,omitempty"`
-
 	// Immutable fields below
 	ObjectSetTemplateSpec `json:",inline"`
 }
 
 // ClusterObjectSetStatus defines the observed state of a ClusterObjectSet
 type ClusterObjectSetStatus struct {
-	// The most recent generation observed by the controller.
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions is a list of status conditions ths object is in.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// DEPRECATED: This field is not part of any API contract
 	// it will go away as soon as kubectl can print conditions!
 	// Human readable status - please use .Conditions from code
-	Phase ObjectSetPhase `json:"phase,omitempty"`
+	Phase ObjectSetStatusPhase `json:"phase,omitempty"`
 	// List of objects, the controller has paused reconcilation on.
 	PausedFor []ObjectSetPausedObject `json:"pausedFor,omitempty"`
 }
 
-// ClusterObjectSet is the Schema for the ClusterObjectSets API
+// ClusterObjectSet reconcile a collection of objects across ordered phases and aggregate their status.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	coordinationv1alpha1 "github.com/thetechnick/package-operator/apis/coordination/v1alpha1"
 	"github.com/thetechnick/package-operator/internal/controllers/coordination"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -58,16 +57,6 @@ func (r *StaticAdoptionReconciler) Reconcile(
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func getStrategyStaticLabels(adoption client.Object) map[string]string {
-	switch o := adoption.(type) {
-	case *coordinationv1alpha1.Adoption:
-		return o.Spec.Strategy.Static.Labels
-	case *coordinationv1alpha1.ClusterAdoption:
-		return o.Spec.Strategy.Static.Labels
-	}
-	return nil
 }
 
 func negativeLabelSelectorFromLabels(specLabels map[string]string) (labels.Selector, error) {

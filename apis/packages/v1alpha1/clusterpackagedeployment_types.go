@@ -17,8 +17,6 @@ type ClusterObjectDeploymentSpec struct {
 
 // ClusterObjectDeploymentStatus defines the observed state of a ClusterObjectDeployment
 type ClusterObjectDeploymentStatus struct {
-	// The most recent generation observed by the controller.
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions is a list of status conditions ths object is in.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// DEPRECATED: This field is not part of any API contract

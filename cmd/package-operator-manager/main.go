@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,8 +15,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	packageapis "github.com/thetechnick/package-operator/apis"
-	"github.com/thetechnick/package-operator/internal/controllers/packages/objectdeployment"
-	"github.com/thetechnick/package-operator/internal/controllers/packages/objectset"
+	"github.com/thetechnick/package-operator/internal/controllers/packages/objectdeployments"
+	"github.com/thetechnick/package-operator/internal/controllers/packages/objectsetphases"
+	"github.com/thetechnick/package-operator/internal/controllers/packages/objectsets"
+	"github.com/thetechnick/package-operator/internal/controllers/packages/packages"
+	"github.com/thetechnick/package-operator/internal/dynamicwatcher"
+	"github.com/thetechnick/package-operator/internal/ownerhandling"
 )
 
 var (
@@ -35,9 +38,11 @@ func main() {
 		metricsAddr          string
 		pprofAddr            string
 		enableLeaderElection bool
+		namespace            string
 	)
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&pprofAddr, "pprof-addr", "", "The address the pprof web endpoint binds to.")
+	flag.StringVar(&namespace, "namespace", os.Getenv("PKO_NAMESPACE"), "xx")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -62,12 +67,6 @@ func main() {
 	dynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "unable to setup dynamic client")
-		os.Exit(1)
-	}
-
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
-	if err != nil {
-		setupLog.Error(err, "unable to setup discovery client")
 		os.Exit(1)
 	}
 
@@ -108,35 +107,77 @@ func main() {
 		}
 	}
 
+	// Dynamic Watcher
+	dw := dynamicwatcher.New(
+		ctrl.Log.WithName("DynamicWatcher"),
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(),
+		dynamicClient)
+
 	// ObjectSet
-	if err = (objectset.NewObjectSetController(
+	if err = (objectsets.NewObjectSetController(
 		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ObjectSet"),
-		mgr.GetScheme(), dynamicClient, discoveryClient,
+		mgr.GetScheme(), dw,
 	).SetupWithManager(mgr)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ObjectSet")
 		os.Exit(1)
 	}
-	if err = (objectset.NewClusterObjectSetController(
+	if err = (objectsets.NewClusterObjectSetController(
 		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ClusterObjectSet"),
-		mgr.GetScheme(), dynamicClient, discoveryClient,
+		mgr.GetScheme(), dw,
 	).SetupWithManager(mgr)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterObjectSet")
 		os.Exit(1)
 	}
 
+	// ObjectSetPhase
+	if err = (objectsetphases.NewObjectSetPhaseController(
+		"default", ownerhandling.Native,
+		mgr.GetClient(), mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("ObjectSetPhase"),
+		mgr.GetScheme(), dw,
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ObjectSetPhase")
+		os.Exit(1)
+	}
+	if err = (objectsetphases.NewClusterObjectSetPhaseController(
+		"default", ownerhandling.Native,
+		mgr.GetClient(), mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("ClusterObjectSetPhase"),
+		mgr.GetScheme(), dw,
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterObjectSetPhase")
+		os.Exit(1)
+	}
+
 	// ObjectDeployment
-	if err = (objectdeployment.NewObjectDeploymentController(
+	if err = (objectdeployments.NewObjectDeploymentController(
 		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ObjectDeployment"),
 		mgr.GetScheme(),
 	).SetupWithManager(mgr)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ObjectDeployment")
 		os.Exit(1)
 	}
-	if err = (objectdeployment.NewClusterObjectDeploymentController(
+	if err = (objectdeployments.NewClusterObjectDeploymentController(
 		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ClusterObjectDeployment"),
 		mgr.GetScheme(),
 	).SetupWithManager(mgr)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterObjectDeployment")
+		os.Exit(1)
+	}
+
+	// Package
+	if err = (packages.NewPackageController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("Package"),
+		mgr.GetScheme(), namespace,
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Package")
+		os.Exit(1)
+	}
+	if err = (packages.NewClusterPackageController(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("ClusterPackage"),
+		mgr.GetScheme(), namespace,
+	).SetupWithManager(mgr)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterPackage")
 		os.Exit(1)
 	}
 

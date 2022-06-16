@@ -1,5 +1,5 @@
 apiVersion: packages.thetechnick.ninja/v1alpha1
-kind: PackageDeployment
+kind: ObjectDeployment
 metadata:
   name: nginx
 spec:
@@ -19,7 +19,7 @@ spec:
         - object:
             apiVersion: v1
             kind: ConfigMap
-            metadata: 
+            metadata:
               name: nginx-v2
             data:
               key1: test123
