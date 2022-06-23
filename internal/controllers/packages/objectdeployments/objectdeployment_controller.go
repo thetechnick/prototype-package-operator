@@ -3,6 +3,7 @@ package objectdeployments
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/go-logr/logr"
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
@@ -195,5 +196,8 @@ func (c *GenericObjectDeploymentController) listObjectSetsByRevision(
 	}
 
 	items := objectSetList.GetItems()
+
+	// Ensure everything is sorted by revision.
+	sort.Sort(objectSetsByRevision(items))
 	return items, nil
 }

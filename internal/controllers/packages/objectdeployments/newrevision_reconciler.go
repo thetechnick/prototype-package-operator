@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
+	"github.com/thetechnick/package-operator/internal/controllers"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,7 +27,7 @@ type NewRevisionReconciler struct {
 func (r *NewRevisionReconciler) Reconcile(
 	ctx context.Context, objectDeployment genericObjectDeployment,
 	currentObjectSet genericObjectSet,
-	outdatedObjectSet []genericObjectSet,
+	outdatedObjectSets []genericObjectSet,
 ) (ctrl.Result, error) {
 	if currentObjectSet != nil {
 		// there is a current ObjectSet,
@@ -34,7 +35,10 @@ func (r *NewRevisionReconciler) Reconcile(
 		return ctrl.Result{}, nil
 	}
 
-	latestRevision, err := latestRevision(outdatedObjectSet)
+	log := controllers.LoggerFromContext(ctx)
+	log.Info("no current revision")
+
+	latestRevision, err := latestRevision(outdatedObjectSets)
 	if err != nil {
 		return ctrl.Result{},
 			fmt.Errorf("calculating latest revision: %w", err)
@@ -61,6 +65,13 @@ func (r *NewRevisionReconciler) Reconcile(
 		ctx, client.ObjectKeyFromObject(newObjectSet.ClientObject()),
 		conflictingObjectSet.ClientObject()); err != nil {
 		return ctrl.Result{}, fmt.Errorf("getting conflicting ObjectSet: %w", err)
+	}
+
+	// sanity check, before we increment the collision counter
+	conflictAnnotations := conflictingObjectSet.ClientObject().GetAnnotations()
+	if conflictAnnotations != nil && conflictAnnotations[objectSetHashAnnotation] == objectDeployment.GetStatusTemplateHash() {
+		log.Info("SANITY CHECK FAILED: no current revision, but hash collision")
+		return ctrl.Result{}, nil
 	}
 
 	isOwner, err := isOwnerOf(
