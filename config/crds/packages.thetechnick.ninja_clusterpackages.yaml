@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.0-beta.0.0.20210504224115-9cd8c2840e84
+    controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
   name: clusterpackages.packages.thetechnick.ninja
 spec:
@@ -135,6 +135,10 @@ spec:
                 description: 'DEPRECATED: This field is not part of any API contract
                   it will go away as soon as kubectl can print conditions! Human readable
                   status - please use .Conditions from code'
+                type: string
+              sourceHash:
+                description: Hash of the PackageSourceSpec, used to track whether
+                  a new unpack is needed.
                 type: string
             type: object
         type: object

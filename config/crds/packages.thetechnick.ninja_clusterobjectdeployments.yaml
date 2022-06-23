@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.0-beta.0.0.20210504224115-9cd8c2840e84
+    controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
   name: clusterobjectdeployments.packages.thetechnick.ninja
 spec:
@@ -99,23 +99,6 @@ spec:
                 properties:
                   metadata:
                     description: Common Object Metadata.
-                    properties:
-                      annotations:
-                        additionalProperties:
-                          type: string
-                        type: object
-                      finalizers:
-                        items:
-                          type: string
-                        type: array
-                      labels:
-                        additionalProperties:
-                          type: string
-                        type: object
-                      name:
-                        type: string
-                      namespace:
-                        type: string
                     type: object
                   spec:
                     description: ObjectSet specification.
