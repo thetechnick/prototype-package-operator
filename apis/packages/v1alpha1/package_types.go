@@ -51,6 +51,7 @@ const (
 	PackagePhasePending     PackageStatusPhase = "Pending"
 	PackagePhaseAvailable   PackageStatusPhase = "Available"
 	PackagePhaseProgressing PackageStatusPhase = "Progressing"
+	PackagePhaseUnpacking   PackageStatusPhase = "Unpacking"
 	PackagePhaseNotReady    PackageStatusPhase = "NotReady"
 )
 
