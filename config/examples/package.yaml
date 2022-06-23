@@ -1,0 +1,7 @@
+apiVersion: packages.thetechnick.ninja/v1alpha1
+kind: Package
+metadata:
+  name: nginx-1
+spec:
+  type: Image
+  image: quay.io/nschiede/nginx:611286b

@@ -2,37 +2,47 @@ package v1alpha1
 
 import "k8s.io/apimachinery/pkg/runtime"
 
-// PackageSet specification.
-type PackageSetTemplateSpec struct {
-	// Reconcile phase configuration for a PackageSet.
+// ObjectSet specification.
+type ObjectSetTemplateSpec struct {
+	// Reconcile phase configuration for a ObjectSet.
 	// Objects in each phase will be reconciled in order and checked with
 	// given ReadinessProbes before continuing with the next phase.
-	Phases []PackagePhase `json:"phases"`
+	Phases []ObjectPhase `json:"phases"`
 	// Readiness Probes check objects that are part of the package.
 	// All probes need to succeed for a package to be considered Available.
 	// Failing probes will prevent the reconcilation of objects in later phases.
-	ReadinessProbes []PackageProbe      `json:"readinessProbes"`
-	Dependencies    []PackageDependency `json:"dependencies,omitempty"`
+	ReadinessProbes []ObjectSetProbe `json:"readinessProbes"`
 }
 
-// Package reconcile phase.
-// Packages are reconciled
-type PackagePhase struct {
+// Specifies that the reconcilation of a specific object should be paused.
+type ObjectSetPausedObject struct {
+	// Object Kind.
+	Kind string `json:"kind"`
+	// Object Group.
+	Group string `json:"group"`
+	// Object Name.
+	Name string `json:"name"`
+}
+
+// ObjectSet reconcile phase.
+type ObjectPhase struct {
 	// Name of the reconcile phase.
 	Name string `json:"name"`
+	// Class of the underlying phase controller.
+	Class string `json:"class,omitempty"`
 	// Objects belonging to this phase.
-	Objects []PackageObject `json:"objects"`
+	Objects []ObjectSetObject `json:"objects"`
 }
 
-// An object that is part of a package.
-type PackageObject struct {
+// An object that is part of an ObjectSet.
+type ObjectSetObject struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Object runtime.RawExtension `json:"object"`
 }
 
-// Package probes define how packages are checked for their status.
-type PackageProbe struct {
+// ObjectSetProbe define how ObjectSets check their children for their status.
+type ObjectSetProbe struct {
 	// Probe configuration parameters.
 	Probes []Probe `json:"probes"`
 	// Selector specifies which objects this probe should target.
@@ -91,28 +101,4 @@ type ProbeConditionSpec struct {
 type ProbeFieldsEqualSpec struct {
 	FieldA string `json:"fieldA"`
 	FieldB string `json:"fieldB"`
-}
-
-// Package dependency describes prequesites of a package,
-// that need to be met prior to installation.
-type PackageDependency struct {
-	Type          PackageDependencyType               `json:"type"`
-	KubernetesAPI *PackageDependencyKubernetesAPISpec `json:"kubernetesAPI,omitempty"`
-}
-
-type PackageDependencyType string
-
-const (
-	// Declares to depend on a certain Kubernetes API.
-	PackageDependencyKubernetesAPI PackageDependencyType = "KubernetesAPI"
-)
-
-// KubernetesAPI Dependency parameters.
-type PackageDependencyKubernetesAPISpec struct {
-	// Group of the API.
-	Group string `json:"group,omitempty"`
-	// Version of the API.
-	Version string `json:"version"`
-	// Kind of the API.
-	Kind string `json:"kind"`
 }

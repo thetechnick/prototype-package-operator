@@ -1,0 +1,41 @@
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: ClusterAdoption
+metadata:
+  name: example-operator
+  annotations:
+    packages.thetechnick.ninja/phase: handover
+spec:
+  strategy:
+    type: Static
+    static:
+      labels:
+        operator-version: v1
+  targetAPI:
+    group: example.thetechnick.ninja
+    kind: Nginx
+    version: v1alpha1
+---
+apiVersion: coordination.thetechnick.ninja/v1alpha1
+kind: ClusterHandover
+metadata:
+  name: example-operator-v1
+  annotations:
+    packages.thetechnick.ninja/phase: handover
+spec:
+  strategy:
+    type: Relabel
+    relabel:
+      labelKey: operator-version
+      fromValue: v0
+      toValue: v1
+      statusPath: .status.operatorVersion
+      maxUnavailable: 1
+  targetAPI:
+    group: example.thetechnick.ninja
+    kind: Nginx
+    version: v1alpha1
+  probes:
+  - type: Condition
+    condition:
+      type: Available
+      status: "True"

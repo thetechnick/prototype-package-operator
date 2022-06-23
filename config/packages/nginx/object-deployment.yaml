@@ -1,0 +1,28 @@
+apiVersion: packages.thetechnick.ninja/v1alpha1
+kind: ObjectDeployment
+spec:
+  selector:
+    matchLabels:
+      app: {{.metadata.name}}
+  template:
+    metadata:
+      labels:
+        app: {{.metadata.name}}
+    spec:
+      phases:
+      - name: deploy
+      readinessProbes:
+      - selector:
+          type: Kind
+          kind:
+            group: apps
+            kind: Deployment
+        probes:
+        - type: Condition
+          condition:
+            type: Available
+            status: "True"
+        - type: FieldsEqual
+          fieldsEqual:
+            fieldA: .status.updatedReplicas
+            fieldB: .status.replicas

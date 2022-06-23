@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: example-operator
+  namespace: example-operator
+  annotations:
+    packages.thetechnick.ninja/phase: crds-and-rbac
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: example-operator
+  namespace: example-operator
+  annotations:
+    packages.thetechnick.ninja/phase: crds-and-rbac
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: example-operator
+  namespace: example-operator
+  annotations:
+    packages.thetechnick.ninja/phase: crds-and-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: example-operator
+subjects:
+- kind: ServiceAccount
+  name: example-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-operator
+  annotations:
+    packages.thetechnick.ninja/phase: crds-and-rbac
+rules:
+- apiGroups:
+  - "apps"
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - delete
+- apiGroups:
+  - "example.thetechnick.ninja"
+  resources:
+  - nginxes
+  - nginxes/status
+  - nginxes/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-operator
+  annotations:
+    packages.thetechnick.ninja/phase: crds-and-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: example-operator
+subjects:
+- kind: ServiceAccount
+  name: example-operator
+  namespace: example-operator
