@@ -3,7 +3,6 @@ package objectdeployments
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
@@ -51,15 +50,13 @@ func (r *EnsurePauseReconciler) Reconcile(
 		return ctrl.Result{},
 			fmt.Errorf("list ObjectSets: %w", err)
 	}
-	// Ensure everything is sorted by revision.
-	sort.Sort(objectSetsByRevision(objectSets))
 
 	var (
 		currentObjectSet   genericObjectSet
 		outdatedObjectSets []genericObjectSet
 	)
-	for _, objectSet := range objectSets {
-		annotations := objectSet.ClientObject().GetAnnotations()
+	for i := range objectSets {
+		annotations := objectSets[i].ClientObject().GetAnnotations()
 		if annotations == nil {
 			// TODO: Raise error,
 			// no ObjectSet should be missing this annotation.
@@ -69,22 +66,22 @@ func (r *EnsurePauseReconciler) Reconcile(
 		if annotations[objectSetHashAnnotation] ==
 			objectDeployment.GetStatusTemplateHash() {
 			// This ObjectSet is up-to-date, we don't touch this.
-			currentObjectSet = objectSet
+			currentObjectSet = objectSets[i]
 			continue
 		}
-		outdatedObjectSets = append(outdatedObjectSets, objectSet)
 
+		outdatedObjectSets = append(outdatedObjectSets, objectSets[i])
 		if meta.IsStatusConditionTrue(
-			objectSet.GetConditions(), packagesv1alpha1.ObjectSetArchived) {
+			objectSets[i].GetConditions(), packagesv1alpha1.ObjectSetArchived) {
 			// already archived, no one cares
 			continue
 		}
 
 		if !equality.Semantic.DeepEqual(
-			pausedObjects, objectSet.GetSpecPausedFor()) {
-			objectSet.SetSpecPausedFor(pausedObjects)
+			pausedObjects, objectSets[i].GetSpecPausedFor()) {
+			objectSets[i].SetSpecPausedFor(pausedObjects)
 			if err := r.client.Update(
-				ctx, objectSet.ClientObject()); err != nil {
+				ctx, objectSets[i].ClientObject()); err != nil {
 				return ctrl.Result{},
 					fmt.Errorf("updating outdated ObjectSet: %w", err)
 			}
@@ -92,10 +89,10 @@ func (r *EnsurePauseReconciler) Reconcile(
 
 		// ensure everything we need is paused
 		if !equality.Semantic.DeepDerivative(
-			pausedObjects, objectSet.GetStatusPausedFor()) {
+			pausedObjects, objectSets[i].GetStatusPausedFor()) {
 			log.Info(
 				"waiting for outdated ObjectSet to be paused",
-				"ObjectSet", client.ObjectKeyFromObject(objectSet.ClientObject()).String())
+				"ObjectSet", client.ObjectKeyFromObject(objectSets[i].ClientObject()).String())
 			// we can return here, because a status update to the ObjectSet will reenqueue this ObjectDeployment
 			return ctrl.Result{}, nil
 		}
