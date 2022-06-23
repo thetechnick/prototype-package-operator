@@ -1,0 +1,70 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: objectsetslice.packages.thetechnick.ninja
+spec:
+  group: packages.thetechnick.ninja
+  names:
+    kind: ObjectSetSlice
+    listKind: ObjectSetSliceList
+    plural: objectsetslice
+    singular: objectsetslice
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Status
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ObjectSetSlice holds a collection of objects too large to inline
+          into the parent ObjectSet. Multiple ObjectSetSlices may provide the storage
+          backend for particularly large ObjectSets.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          objects:
+            description: Objects belonging to this phase.
+            items:
+              description: An object that is part of an ObjectSet.
+              properties:
+                object:
+                  type: object
+                  x-kubernetes-embedded-resource: true
+                  x-kubernetes-preserve-unknown-fields: true
+              required:
+              - object
+              type: object
+            type: array
+        required:
+        - objects
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
