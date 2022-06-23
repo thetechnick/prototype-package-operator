@@ -32,6 +32,14 @@ func (a *GenericPackage) ClientObject() client.Object {
 }
 
 func (a *GenericPackage) UpdatePhase() {
+	if meta.IsStatusConditionFalse(
+		a.Status.Conditions,
+		packagesv1alpha1.PackageUnpacked,
+	) {
+		a.Status.Phase = packagesv1alpha1.PackagePhaseUnpacking
+		return
+	}
+
 	if meta.IsStatusConditionTrue(
 		a.Status.Conditions,
 		packagesv1alpha1.PackageProgressing,
@@ -80,6 +88,14 @@ func (a *GenericClusterPackage) ClientObject() client.Object {
 }
 
 func (a *GenericClusterPackage) UpdatePhase() {
+	if meta.IsStatusConditionFalse(
+		a.Status.Conditions,
+		packagesv1alpha1.PackageUnpacked,
+	) {
+		a.Status.Phase = packagesv1alpha1.PackagePhaseUnpacking
+		return
+	}
+
 	if meta.IsStatusConditionTrue(
 		a.Status.Conditions,
 		packagesv1alpha1.PackageProgressing,
