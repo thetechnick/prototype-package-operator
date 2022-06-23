@@ -139,6 +139,7 @@ func isOwnerOf(owner, obj client.Object, scheme *runtime.Scheme) (bool, error) {
 	for _, ownerRef := range obj.GetOwnerReferences() {
 		if ownerRef.Kind == ownerGVK.Kind &&
 			ownerRef.APIVersion == ownerGVK.Group &&
+			ownerRef.Name == owner.GetName() &&
 			ownerRef.Controller != nil &&
 			*ownerRef.Controller {
 			return true, nil
