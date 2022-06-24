@@ -14,10 +14,11 @@ import (
 )
 
 type UnpackController struct {
-	client     client.Client
-	scheme     *runtime.Scheme
-	log        logr.Logger
-	newPackage packageFactory
+	client              client.Client
+	scheme              *runtime.Scheme
+	log                 logr.Logger
+	newPackage          packageFactory
+	newObjectDeployment objectDeploymentFactory
 	// where the package content is located
 	packagePath string
 
@@ -52,12 +53,13 @@ func NewGenericUnpackController(
 	packagePath string, loader *packageLoaderBuilder,
 ) *UnpackController {
 	uc := &UnpackController{
-		client:      c,
-		scheme:      scheme,
-		log:         log,
-		newPackage:  newPackage,
-		packagePath: packagePath,
-		loader:      loader,
+		client:              c,
+		scheme:              scheme,
+		log:                 log,
+		newPackage:          newPackage,
+		newObjectDeployment: newObjectDeployment,
+		packagePath:         packagePath,
+		loader:              loader,
 	}
 	return uc
 }
@@ -97,20 +99,46 @@ func (c *UnpackController) Reconcile(
 }
 
 func (c *UnpackController) reconcileDeployment(ctx context.Context, deploy genericObjectDeployment) error {
-	err := c.client.Create(ctx, deploy.ClientObject())
-	if err == nil {
-		return nil
+	existingDeploy := c.newObjectDeployment(c.scheme)
+	err := c.client.Get(ctx, client.ObjectKeyFromObject(deploy.ClientObject()), existingDeploy.ClientObject())
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("getting ObjectDeployment: %w", err)
 	}
-	if err != nil && !errors.IsAlreadyExists(err) {
-		return fmt.Errorf("creating ObjectDeployment: %w", err)
-	}
-	if errors.IsAlreadyExists(err) {
-		err := c.client.Update(ctx, deploy.ClientObject())
-		if err != nil {
-			return fmt.Errorf("updating ObjectDeployment: %w", err)
+	if errors.IsNotFound(err) {
+		if err := c.client.Create(ctx, deploy.ClientObject()); err != nil {
+			return fmt.Errorf("creating ObjectDeployment: %w", err)
 		}
 	}
 
+	newAnnotations := deploy.ClientObject().GetAnnotations()
+	newLabels := deploy.ClientObject().GetLabels()
+
+	// Take existing ObjectMeta
+	deploy.SetObjectMeta(existingDeploy.GetObjectMeta())
+
+	// merge annotations and labels
+	deployCO := deploy.ClientObject()
+	annotations := deployCO.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	for k, v := range newAnnotations {
+		annotations[k] = v
+	}
+	deployCO.SetAnnotations(annotations)
+
+	labels := deployCO.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	for k, v := range newLabels {
+		labels[k] = v
+	}
+	deployCO.SetLabels(labels)
+
+	if err := c.client.Update(ctx, deployCO); err != nil {
+		return fmt.Errorf("updating ObjectDeployment: %w", err)
+	}
 	return nil
 }
 
