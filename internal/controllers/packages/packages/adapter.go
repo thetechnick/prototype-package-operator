@@ -140,6 +140,8 @@ type genericObjectDeployment interface {
 	GetPhases() []packagesv1alpha1.ObjectPhase
 	SetPhases(phases []packagesv1alpha1.ObjectPhase)
 	GetConditions() []metav1.Condition
+	GetObjectMeta() metav1.ObjectMeta
+	SetObjectMeta(metav1.ObjectMeta)
 }
 
 var (
@@ -167,6 +169,14 @@ func (a *GenericObjectDeployment) GetConditions() []metav1.Condition {
 	return a.Status.Conditions
 }
 
+func (a *GenericObjectDeployment) GetObjectMeta() metav1.ObjectMeta {
+	return a.ObjectMeta
+}
+
+func (a *GenericObjectDeployment) SetObjectMeta(m metav1.ObjectMeta) {
+	a.ObjectMeta = m
+}
+
 type GenericClusterObjectDeployment struct {
 	packagesv1alpha1.ClusterObjectDeployment
 }
@@ -185,6 +195,14 @@ func (a *GenericClusterObjectDeployment) SetPhases(phases []packagesv1alpha1.Obj
 
 func (a *GenericClusterObjectDeployment) GetConditions() []metav1.Condition {
 	return a.Status.Conditions
+}
+
+func (a *GenericClusterObjectDeployment) GetObjectMeta() metav1.ObjectMeta {
+	return a.ObjectMeta
+}
+
+func (a *GenericClusterObjectDeployment) SetObjectMeta(m metav1.ObjectMeta) {
+	a.ObjectMeta = m
 }
 
 var (
