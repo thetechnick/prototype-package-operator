@@ -119,7 +119,7 @@ func (c *unpackReconciler) ensureUnpackJob(
 					InitContainers: []corev1.Container{
 						{ // copy static loader binary into a volume
 							// Image: "quay.io/nschiede/package-loader:" + version.Version,
-							Image: "quay.io/nschiede/package-loader:bed90d3",
+							Image: "quay.io/nschiede/package-loader:latest",
 							Name:  "prepare-loader",
 							Command: []string{
 								"cp", "/package-loader", "/loader-bin/package-loader",
