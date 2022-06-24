@@ -15,6 +15,7 @@ import (
 	packagesv1alpha1 "github.com/thetechnick/package-operator/apis/packages/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/yaml"
 )
 
@@ -79,12 +80,19 @@ func (l *packageLoader) Load() (genericObjectDeployment, error) {
 			"package contains no (Cluster)ObjectDeployment: %w", err)
 	}
 
+	od := l.newObjectDeployment(l.scheme)
+	odGVK, _ := apiutil.GVKForObject(od.ClientObject(), l.scheme)
+	if l.objectDeployment.GroupVersionKind().GroupKind() != odGVK.GroupKind() {
+		return nil, fmt.Errorf(
+			"Package should contain a %s, but contains a %s object",
+			odGVK.Kind, l.objectDeployment.GroupVersionKind().Kind)
+	}
+
 	odJson, err := json.Marshal(l.objectDeployment)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling ObjectDeployment: %w", err)
 	}
 
-	od := l.newObjectDeployment(l.scheme)
 	if err := json.Unmarshal(odJson, od); err != nil {
 		return nil, fmt.Errorf("unmarshal ObjectDeployment: %w", err)
 	}
