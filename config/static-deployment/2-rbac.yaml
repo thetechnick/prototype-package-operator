@@ -19,9 +19,13 @@ rules:
   - packages.thetechnick.ninja
   resources:
   - packages
+  - packages/finalizers
   - clusterpackages
+  - clusterpackages/finalizers
   - objectdeployments
+  - objectdeployments/finalizers
   - clusterobjectdeployments
+  - clusterobjectdeployments/finalizers
   verbs:
   - get
   - list
