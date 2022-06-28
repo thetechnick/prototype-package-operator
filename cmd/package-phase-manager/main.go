@@ -47,7 +47,7 @@ func main() {
 	)
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&pprofAddr, "pprof-addr", "", "The address the pprof web endpoint binds to.")
-	flag.StringVar(&namespace, "namespace", "", "Namespace to limit the operator to.")
+	flag.StringVar(&namespace, "namespace", os.Getenv("PKO_NAMESPACE"), "Namespace to limit the operator to.")
 	flag.StringVar(&class, "class", "", "class of the ObjectSetPhase to work on.")
 	flag.StringVar(&targetClusterKubeconfigFile, "target-cluster-kubeconfig-file", "", "Filepath for a kubeconfig connecting to the deployment target cluster.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
